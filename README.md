@@ -1,1 +1,1 @@
-# demo-foundry-document-intelligence
+# demo-foundry-codex
