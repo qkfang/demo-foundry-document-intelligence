@@ -4,6 +4,7 @@ using FxAgent.Agents;
 using FxAgent.Api;
 using FxAgent.Mcp;
 using FxAgent.Services;
+using OpenAI.Responses;
 using OpenTelemetry.Instrumentation.Http;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -101,10 +102,16 @@ var deploymentName = app.Configuration["AZURE_AI_MODEL_DEPLOYMENT_NAME"]
     ?? throw new InvalidOperationException("AZURE_AI_MODEL_DEPLOYMENT_NAME is not set.");
 
 var aiProjectClient = new AIProjectClient(new Uri(endpoint), credential);
+var appMcpUrl = app.Configuration["APP_MCP_URL"] ?? "http://localhost:5001";
+var appMcpTool = ResponseTool.CreateMcpTool(
+    serverLabel: "agentdi-mcp",
+    serverUri: new Uri($"{appMcpUrl}/mcp"),
+    toolCallApprovalPolicy: new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.NeverRequireApproval));
+
 var notificationAgent = new CtAgNotification(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgNotification>());
 var qualityAgent = new CtAgQuality(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgQuality>());
 var correspondenceAgent = new CtAgCorrespondence(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgCorrespondence>());
-var extractDiAgent = new CtAgExtractDI(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgExtractDI>());
+var extractDiAgent = new CtAgExtractDI(aiProjectClient, deploymentName, [appMcpTool], loggerFactory.CreateLogger<CtAgExtractDI>());
 var extractCuAgent = new CtAgExtractCU(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgExtractCU>());
 var docService = app.Services.GetRequiredService<DocIntelligenceService>();
 var cuService = app.Services.GetRequiredService<ContentUnderstandingService>();

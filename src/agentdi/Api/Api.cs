@@ -23,14 +23,9 @@ public static class Endpoints
             if (string.IsNullOrWhiteSpace(request.Base64Content))
                 return Results.BadRequest(new { error = "base64Content is required" });
 
-            byte[] bytes;
-            try { bytes = Convert.FromBase64String(request.Base64Content); }
-            catch { return Results.BadRequest(new { error = "base64Content is not valid base64" }); }
-
-            logger.LogInformation("Extract DI upload: {Size} bytes", bytes.Length);
-            var text = await docService.ExtractTextFromBytesAsync(BinaryData.FromBytes(bytes));
-            var response = await extractDiAgent.RunAsync(text);
-            return Results.Ok(new { extractedText = text, response });
+            logger.LogInformation("Extract DI upload: {Size} chars (base64)", request.Base64Content.Length);
+            var response = await extractDiAgent.RunAsync(request.Base64Content);
+            return Results.Ok(new { response });
         });
 
         app.MapPost("/extract/cu/upload", async (Base64Request request) =>

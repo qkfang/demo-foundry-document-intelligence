@@ -52,6 +52,63 @@ resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-
   }
 }
 
+resource gpt41Deployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+  parent: aiHub
+  name: 'gpt-4.1'
+  dependsOn: [gpt4oDeployment]
+  sku: {
+    name: 'GlobalStandard'
+    capacity: 1000
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'gpt-4.1'
+      version: '2025-04-14'
+    }
+    versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
+    raiPolicyName: 'Microsoft.DefaultV2'
+  }
+}
+
+resource gpt41MiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+  parent: aiHub
+  name: 'gpt-4.1-mini'
+  dependsOn: [gpt41Deployment]
+  sku: {
+    name: 'GlobalStandard'
+    capacity: 1000
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'gpt-4.1-mini'
+      version: '2025-04-14'
+    }
+    versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
+    raiPolicyName: 'Microsoft.DefaultV2'
+  }
+}
+
+resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+  parent: aiHub
+  name: 'text-embedding-3-large'
+  dependsOn: [gpt41MiniDeployment]
+  sku: {
+    name: 'GlobalStandard'
+    capacity: 1000
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'text-embedding-3-large'
+      version: '1'
+    }
+    versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
+    raiPolicyName: 'Microsoft.DefaultV2'
+  }
+}
+
 output accountName string = aiHub.name
 output resourceId string = aiHub.id
 output projectName string = aiProject.name
