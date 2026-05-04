@@ -7,7 +7,9 @@ param location string = 'australiaeast'
 @description('Principal object IDs to grant access to deployed resources')
 param principals array = []
 
-var commonTags = {}
+var commonTags = {
+  SecurityControl: 'Ignore'
+}
 var foundryName = '${baseName}-foundry'
 var docIntelligenceName = '${baseName}-di'
 var storageAccountName = replace('${baseName}sa', '-', '')
@@ -47,7 +49,7 @@ resource noticesContainer 'Microsoft.Storage/storageAccounts/blobServices/contai
   parent: blobService
   name: 'notices'
   properties: {
-    publicAccess: 'None'
+    publicAccess: 'Blob'
   }
 }
 
@@ -150,6 +152,7 @@ module webApp 'webapp.bicep' = {
       AZURE_AI_PROJECT_ENDPOINT: azureFoundry.outputs.projectEndpoint
       AZURE_AI_MODEL_DEPLOYMENT_NAME: azureFoundry.outputs.deploymentName
       AZURE_DOC_INTELLIGENCE_ENDPOINT: docIntelligence.outputs.endpoint
+      AZURE_STORAGE_ACCOUNT_NAME: storageAccountName
       AZURE_TENANT_ID: tenant().tenantId
     }
     appCommandLine: 'dotnet agentdi.dll'

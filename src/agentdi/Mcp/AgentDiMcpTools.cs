@@ -22,35 +22,33 @@ public class AgentDiMcpTools
     }
 
     [McpServerTool(Name = "extractDoc_DI"),
-     Description("Use Azure AI Document Intelligence (prebuilt-layout) to extract fields and information from a base64-encoded document.")]
+     Description("Use Azure AI Document Intelligence (prebuilt-layout) to extract fields and information from a document URL.")]
     public async Task<string> ExtractDocDI(
-        [Description("Base64-encoded binary content of the document to analyze")] string base64Content)
+        [Description("Public URL of the document to analyze")] string documentUrl)
     {
-        if (string.IsNullOrWhiteSpace(base64Content))
-            return "Error: base64Content is required.";
+        if (string.IsNullOrWhiteSpace(documentUrl))
+            return "Error: documentUrl is required.";
 
-        byte[] bytes;
-        try { bytes = Convert.FromBase64String(base64Content); }
-        catch { return "Error: base64Content is not valid base64."; }
+        if (!Uri.TryCreate(documentUrl, UriKind.Absolute, out var uri))
+            return "Error: documentUrl is not a valid URL.";
 
-        return await _docIntelligence.ExtractTextFromBytesAsync(BinaryData.FromBytes(bytes));
+        return await _docIntelligence.ExtractTextFromUrlAsync(uri);
     }
 
     [McpServerTool(Name = "extractDoc_CU"),
-     Description("Use Azure AI Content Understanding to extract fields and information from a base64-encoded document.")]
+     Description("Use Azure AI Content Understanding to extract fields and information from a document URL.")]
     public async Task<string> ExtractDocCU(
-        [Description("Base64-encoded binary content of the document to analyze")] string base64Content,
+        [Description("Public URL of the document to analyze")] string documentUrl,
         [Description("Content Understanding analyzer id (e.g. prebuilt-documentSearch, prebuilt-invoice, prebuilt-receipt). Defaults to prebuilt-documentSearch.")]
         string analyzerId = "prebuilt-documentSearch")
     {
-        if (string.IsNullOrWhiteSpace(base64Content))
-            return "Error: base64Content is required.";
+        if (string.IsNullOrWhiteSpace(documentUrl))
+            return "Error: documentUrl is required.";
 
-        byte[] bytes;
-        try { bytes = Convert.FromBase64String(base64Content); }
-        catch { return "Error: base64Content is not valid base64."; }
+        if (!Uri.TryCreate(documentUrl, UriKind.Absolute, out var uri))
+            return "Error: documentUrl is not a valid URL.";
 
-        return await _contentUnderstanding.ExtractFieldsFromBytesAsync(BinaryData.FromBytes(bytes), analyzerId);
+        return await _contentUnderstanding.ExtractFieldsFromUrlAsync(uri, analyzerId);
     }
 
     [McpServerTool(Name = "notification"),

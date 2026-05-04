@@ -7,7 +7,6 @@ record NoticeUrlRequest(string Url);
 record NoticeTextRequest(string Text);
 record JsonRequest(string Json);
 record ApproveRequest(string RunId, bool Approved);
-record Base64Request(string Base64Content);
 
 public static class Endpoints
 {
@@ -16,29 +15,56 @@ public static class Endpoints
         CtAgCorrespondence correspondenceAgent,
         CtAgExtractDI extractDiAgent, CtAgExtractCU extractCuAgent,
         DocIntelligenceService docService, ContentUnderstandingService cuService,
-        PendingApprovalStore approvalStore, ILogger logger)
+        BlobStorageService blobStorage, PendingApprovalStore approvalStore, ILogger logger)
     {
-        app.MapPost("/extract/di/upload", async (Base64Request request) =>
+        app.MapPost("/extract/di/upload", async (HttpRequest http) =>
         {
-            if (string.IsNullOrWhiteSpace(request.Base64Content))
-                return Results.BadRequest(new { error = "base64Content is required" });
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { error = "multipart/form-data required" });
 
-            logger.LogInformation("Extract DI upload: {Size} chars (base64)", request.Base64Content.Length);
-            var response = await extractDiAgent.RunAsync(request.Base64Content);
+            var form = await http.ReadFormAsync();
+            var file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { error = "file is required" });
+
+            logger.LogInformation("Extract DI upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
+            using var stream = file.OpenReadStream();
+            var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
+            var extractedText = await docService.ExtractTextFromUrlAsync(blobUrl);
+            return Results.Ok(new { extractedText });
+        });
+
+        app.MapPost("/extract/agent/upload", async (HttpRequest http) =>
+        {
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { error = "multipart/form-data required" });
+
+            var form = await http.ReadFormAsync();
+            var file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { error = "file is required" });
+
+            logger.LogInformation("Extract Agent upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
+            using var stream = file.OpenReadStream();
+            var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
+            var response = await extractDiAgent.RunAsync(blobUrl.ToString());
             return Results.Ok(new { response });
         });
 
-        app.MapPost("/extract/cu/upload", async (Base64Request request) =>
+        app.MapPost("/extract/cu/upload", async (HttpRequest http) =>
         {
-            if (string.IsNullOrWhiteSpace(request.Base64Content))
-                return Results.BadRequest(new { error = "base64Content is required" });
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { error = "multipart/form-data required" });
 
-            byte[] bytes;
-            try { bytes = Convert.FromBase64String(request.Base64Content); }
-            catch { return Results.BadRequest(new { error = "base64Content is not valid base64" }); }
+            var form = await http.ReadFormAsync();
+            var file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { error = "file is required" });
 
-            logger.LogInformation("Extract CU upload: {Size} bytes", bytes.Length);
-            var text = await cuService.ExtractFieldsFromBytesAsync(BinaryData.FromBytes(bytes));
+            logger.LogInformation("Extract CU upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
+            using var stream = file.OpenReadStream();
+            var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
+            var text = await cuService.ExtractFieldsFromUrlAsync(blobUrl);
             var response = await extractCuAgent.RunAsync(text);
             return Results.Ok(new { extractedText = text, response });
         });
@@ -64,9 +90,9 @@ public static class Endpoints
                 return Results.BadRequest(new { error = "file is required" });
 
             logger.LogInformation("Notification upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
-            using var ms = new MemoryStream();
-            await file.CopyToAsync(ms);
-            var extractedText = await docService.ExtractTextFromBytesAsync(BinaryData.FromBytes(ms.ToArray()));
+            using var stream = file.OpenReadStream();
+            var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
+            var extractedText = await docService.ExtractTextFromUrlAsync(blobUrl);
             var response = await notificationAgent.RunAsync(extractedText);
             return Results.Ok(new { extractedText, response });
         });

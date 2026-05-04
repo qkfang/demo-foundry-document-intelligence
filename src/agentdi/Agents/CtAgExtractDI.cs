@@ -12,9 +12,9 @@ public class CtAgExtractDI : BaseAgent
     }
 
     private static string GetInstructions() => """
-        You are a document extraction agent. You receive a base64-encoded document.
+        You are a document extraction agent. You receive a URL to a document stored in blob storage.
 
-        Step 1: Call the extractDoc_DI tool with the base64 content to extract the raw text from the document.
+        Step 1: Call the extractDoc_DI tool with the document URL to extract the raw text from the document.
         Step 2: From the extracted text, identify and extract exactly these fields and return them as a single JSON object. Do not include any text outside the JSON.
 
         Fields:

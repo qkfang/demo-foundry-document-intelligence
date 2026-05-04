@@ -6,8 +6,6 @@
   <title>Extract (DI)</title>
   <link rel="stylesheet" href="../assets/styles.css" />
   <style>
-    .field-grid { display: grid; grid-template-columns: 160px 1fr; gap: 8px 14px; font-size: 0.9rem; }
-    .field-grid .k { color: var(--muted); font-weight: 600; }
     .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
@@ -15,24 +13,15 @@
 <body>
   <main>
     <h1>Extract (DI)</h1>
-    <div class="subtitle">Upload a document and extract structured fields using Azure Document Intelligence.</div>
+    <div class="subtitle">Upload a document and extract raw text directly using Azure Document Intelligence (no agent).</div>
 
-    <div class="grid-2">
-      <div class="card">
-        <h2>Upload Document</h2>
-        <div class="row">
-          <label>File (PDF, image, or Word document)</label>
-          <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.doc,.docx" />
-        </div>
-        <button id="btn-upload">Extract</button>
+    <div class="card">
+      <h2>Upload Document</h2>
+      <div class="row">
+        <label>File (PDF, image, or Word document)</label>
+        <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.doc,.docx" />
       </div>
-
-      <div class="card">
-        <h2>Extracted Fields</h2>
-        <div id="result-area">
-          <div class="empty">No document processed yet.</div>
-        </div>
-      </div>
+      <button id="btn-upload">Extract</button>
     </div>
 
     <div class="card">
@@ -56,60 +45,17 @@
       if (!f) return;
       setLoading(true);
       try {
-        const base64Content = await fileToBase64(f);
-        const res = await fetch('/extract/di/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ base64Content })
-        });
+        const fd = new FormData();
+        fd.append('file', f);
+        const res = await fetch('/extract/di/upload', { method: 'POST', body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        render(data);
+        document.getElementById('raw-text').textContent = data.extractedText || '(no text extracted)';
       } catch (err) {
-        renderError(err.message);
+        document.getElementById('raw-text').textContent = `Error: ${err.message}`;
       }
       setLoading(false);
     });
-
-    function fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
-
-    function renderError(msg) {
-      document.getElementById('result-area').innerHTML = `<div class="empty error">Error: ${esc(msg)}</div>`;
-      document.getElementById('raw-text').textContent = '—';
-    }
-
-    function render(data) {
-      document.getElementById('raw-text').textContent = data.extractedText ?? '—';
-      const parsed = tryParseJson(data.response);
-      if (!parsed) {
-        document.getElementById('result-area').innerHTML = `<div class="empty">Agent did not return structured JSON.</div>`;
-        return;
-      }
-      const amount = parsed.amountDue != null ? String(parsed.amountDue) : '—';
-      document.getElementById('result-area').innerHTML = `
-        <div class="field-grid">
-          <div class="k">Entity Name</div><div>${esc(parsed.entityName)}</div>
-          <div class="k">Jurisdiction</div><div>${esc(parsed.jurisdiction)}</div>
-          <div class="k">Notice Date</div><div>${esc(parsed.noticeDate)}</div>
-          <div class="k">Due Date</div><div>${esc(parsed.dueDate)}</div>
-          <div class="k">Amount Due</div><div>${esc(amount)}</div>
-          <div class="k">Tax Type</div><div>${esc(parsed.taxType)}</div>
-        </div>`;
-    }
-
-    function tryParseJson(s) {
-      if (!s) return null;
-      const m = s.match(/\{[\s\S]*\}/);
-      if (!m) return null;
-      try { return JSON.parse(m[0]); } catch { return null; }
-    }
   </script>
 </body>
 </html>
