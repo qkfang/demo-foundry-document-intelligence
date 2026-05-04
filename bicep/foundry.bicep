@@ -36,7 +36,7 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = 
 
 resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
   parent: aiHub
-  name: 'gpt-4o'
+  name: 'gpt-5.4'
   sku: {
     name: 'GlobalStandard'
     capacity: 1000
@@ -44,8 +44,8 @@ resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4o'
-      version: '2024-11-20'
+      name: 'gpt-5.4'
+      version: '2026-03-05'
     }
     versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
     raiPolicyName: 'Microsoft.DefaultV2'
