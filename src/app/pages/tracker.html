@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notice Tracker</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <main>
+    <h1>Notice Tracker</h1>
+    <div class="subtitle">All notices with key information. View original notice and save additional correspondence and supporting materials.</div>
+
+    <div class="card">
+      <div class="toolbar">
+        <input type="text" id="search" placeholder="Search by entity, jurisdiction, tax type..." style="max-width:340px;" />
+        <select id="filter-status" style="max-width:160px;">
+          <option value="">All statuses</option>
+          <option>Open</option>
+          <option>In Review</option>
+          <option>Closed</option>
+        </select>
+        <div class="spacer"></div>
+        <button id="add-btn">+ Add Notice</button>
+      </div>
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Entity</th>
+            <th>Jurisdiction</th>
+            <th>Tax Type</th>
+            <th>Notice Date</th>
+            <th>Due Date</th>
+            <th>Amount</th>
+            <th>Urgency</th>
+            <th>Status</th>
+            <th>Assigned</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+
+    <div class="card" id="detail" style="display:none;">
+      <h2 id="detail-title">Notice Detail</h2>
+      <div class="grid-2">
+        <div>
+          <h3>Key Information</h3>
+          <div id="detail-fields"></div>
+        </div>
+        <div>
+          <h3>Notice Document</h3>
+          <pre id="notice-preview" style="max-height:240px;">Original notice preview placeholder.</pre>
+
+          <h3 style="margin-top:14px;">Correspondence &amp; Materials</h3>
+          <div id="attachments"></div>
+          <div class="row" style="margin-top:10px;">
+            <label>Add correspondence / supporting material</label>
+            <input type="text" id="att-name" placeholder="File name or description" />
+          </div>
+          <div class="flex">
+            <select id="att-kind" style="max-width:200px;">
+              <option value="correspondence">Correspondence</option>
+              <option value="supporting">Supporting material</option>
+              <option value="response">Response</option>
+            </select>
+            <button id="att-add">Save Attachment</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/data.js"></script>
+  <script src="../assets/app.js"></script>
+  <script>
+    renderHeader('Notice Tracker');
+
+    const body = document.getElementById('tbl-body');
+    const search = document.getElementById('search');
+    const filter = document.getElementById('filter-status');
+    let selectedId = null;
+
+    function rows() {
+      const q = search.value.toLowerCase();
+      const s = filter.value;
+      return MOCK.notices.filter(n =>
+        (!s || n.status === s) &&
+        (!q || `${n.entity} ${n.jurisdiction} ${n.taxType} ${n.id}`.toLowerCase().includes(q))
+      );
+    }
+
+    function render() {
+      const list = rows();
+      if (!list.length) {
+        body.innerHTML = `<tr><td colspan="11" class="empty">No notices match.</td></tr>`;
+        return;
+      }
+      body.innerHTML = list.map(n => `
+        <tr>
+          <td>${esc(n.id)}</td>
+          <td>${esc(n.entity)}</td>
+          <td>${esc(n.jurisdiction)}</td>
+          <td>${esc(n.taxType)}</td>
+          <td>${esc(n.noticeDate)}</td>
+          <td>${esc(n.dueDate)}</td>
+          <td>${n.amountDue ? n.amountDue.toFixed(2) + ' ' + n.currency : '—'}</td>
+          <td><span class="badge ${n.urgency}">${n.urgency.toUpperCase()}</span></td>
+          <td><span class="badge ${n.status === 'Closed' ? 'closed' : n.status === 'In Review' ? 'review' : 'open'}">${esc(n.status)}</span></td>
+          <td>${esc(n.assignedTo)}</td>
+          <td><button class="btn-secondary" data-id="${n.id}">View</button></td>
+        </tr>
+      `).join('');
+      body.querySelectorAll('button[data-id]').forEach(b =>
+        b.addEventListener('click', () => showDetail(b.dataset.id))
+      );
+    }
+
+    function showDetail(id) {
+      const n = MOCK.notices.find(x => x.id === id);
+      if (!n) return;
+      selectedId = id;
+      document.getElementById('detail').style.display = 'block';
+      document.getElementById('detail-title').textContent = `Notice ${n.id} — ${n.entity}`;
+      document.getElementById('detail-fields').innerHTML = `
+        <div class="field-grid" style="display:grid;grid-template-columns:160px 1fr;gap:6px 12px;font-size:0.9rem;">
+          <div style="color:#666;font-weight:600;">Entity</div><div>${esc(n.entity)}</div>
+          <div style="color:#666;font-weight:600;">Jurisdiction</div><div>${esc(n.jurisdiction)}</div>
+          <div style="color:#666;font-weight:600;">Tax Type</div><div>${esc(n.taxType)}</div>
+          <div style="color:#666;font-weight:600;">Notice Date</div><div>${esc(n.noticeDate)}</div>
+          <div style="color:#666;font-weight:600;">Due Date</div><div>${esc(n.dueDate)}</div>
+          <div style="color:#666;font-weight:600;">Amount Due</div><div>${n.amountDue ? n.amountDue.toFixed(2) + ' ' + n.currency : '—'}</div>
+          <div style="color:#666;font-weight:600;">Urgency</div><div><span class="badge ${n.urgency}">${n.urgency.toUpperCase()}</span></div>
+          <div style="color:#666;font-weight:600;">Action?</div><div>${n.actionRequired ? '<span class="badge action">ACTION REQUIRED</span>' : '<span class="badge info">INFORMATIONAL</span>'}</div>
+          <div style="color:#666;font-weight:600;">Status</div><div>${esc(n.status)}</div>
+          <div style="color:#666;font-weight:600;">Assigned</div><div>${esc(n.assignedTo)}</div>
+        </div>
+        <div class="summary">${esc(n.summary)}</div>
+      `;
+      document.getElementById('notice-preview').textContent =
+        `[Preview of ${n.id}]\n\nFrom: ${n.jurisdiction} Tax Authority\nTo: ${n.entity}\nDate: ${n.noticeDate}\n\n${n.summary}`;
+      renderAttachments(n);
+    }
+
+    function renderAttachments(n) {
+      const el = document.getElementById('attachments');
+      if (!n.attachments.length) {
+        el.innerHTML = `<div class="empty" style="padding:14px;">No attachments yet.</div>`;
+        return;
+      }
+      el.innerHTML = n.attachments.map(a => `
+        <div class="list-item">
+          <strong>${esc(a.name)}</strong>
+          <div class="meta">Type: ${esc(a.kind)}</div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('att-add').addEventListener('click', () => {
+      if (!selectedId) return;
+      const name = document.getElementById('att-name').value.trim();
+      if (!name) return;
+      const kind = document.getElementById('att-kind').value;
+      const n = MOCK.notices.find(x => x.id === selectedId);
+      n.attachments.push({ name, kind });
+      document.getElementById('att-name').value = '';
+      renderAttachments(n);
+    });
+
+    document.getElementById('add-btn').addEventListener('click', () => {
+      const id = 'N-' + (1000 + MOCK.notices.length + 1);
+      MOCK.notices.push({
+        id, entity: 'New Entity', jurisdiction: '—', taxType: '—',
+        noticeDate: new Date().toISOString().slice(0,10), dueDate: null,
+        amountDue: 0, currency: 'USD', urgency: 'low', actionRequired: false,
+        status: 'Open', assignedTo: 'Unassigned', summary: 'New notice.', attachments: []
+      });
+      render();
+    });
+
+    search.addEventListener('input', render);
+    filter.addEventListener('change', render);
+    render();
+  </script>
+</body>
+</html>

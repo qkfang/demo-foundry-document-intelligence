@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Correspondence Agent</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <main>
+    <h1>Correspondence Agent</h1>
+    <div class="subtitle">Generate intelligent draft responses for any selected notice.</div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>Select Notice</h2>
+        <div class="row">
+          <label>Notice</label>
+          <select id="notice-select"></select>
+        </div>
+        <div class="row">
+          <label>Response Tone</label>
+          <select id="tone">
+            <option value="formal">Formal</option>
+            <option value="concise">Concise</option>
+            <option value="apologetic">Apologetic</option>
+            <option value="dispute">Dispute</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>Intent</label>
+          <select id="intent">
+            <option value="acknowledge">Acknowledge receipt</option>
+            <option value="request-extension">Request extension</option>
+            <option value="dispute">Dispute amount</option>
+            <option value="confirm-payment">Confirm payment</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>Additional Notes (optional)</label>
+          <textarea id="notes" placeholder="Anything specific to include..."></textarea>
+        </div>
+        <button id="generate">Draft Response</button>
+      </div>
+
+      <div class="card">
+        <h2>Draft Response</h2>
+        <div id="draft-area">
+          <div class="empty">Select a notice and click Draft Response.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/data.js"></script>
+  <script src="../assets/app.js"></script>
+  <script>
+    renderHeader('Correspondence Agent');
+
+    const sel = document.getElementById('notice-select');
+    sel.innerHTML = MOCK.notices.map(n =>
+      `<option value="${n.id}">${esc(n.id)} — ${esc(n.entity)} (${esc(n.taxType)})</option>`
+    ).join('');
+
+    function draft(notice, tone, intent, notes) {
+      const greeting = tone === 'concise' ? 'Hello,' : 'To Whom It May Concern,';
+      const closing = tone === 'concise' ? 'Regards,' : 'Sincerely,';
+      const intro = {
+        acknowledge: `We acknowledge receipt of notice ${notice.id} dated ${notice.noticeDate} regarding ${notice.taxType}.`,
+        'request-extension': `We are writing in reference to notice ${notice.id} dated ${notice.noticeDate} and respectfully request an extension to respond.`,
+        dispute: `We are writing in reference to notice ${notice.id} dated ${notice.noticeDate}. After review, we believe the assessed amount of ${notice.amountDue ?? 0} ${notice.currency} requires further clarification.`,
+        'confirm-payment': `We confirm payment in response to notice ${notice.id} dated ${notice.noticeDate} for ${notice.taxType}.`
+      }[intent];
+
+      const body = {
+        acknowledge: `We are reviewing the items described and will respond by ${notice.dueDate ?? 'the indicated due date'}.`,
+        'request-extension': `Given the volume of supporting documentation required, we request an additional 30 days beyond the current due date of ${notice.dueDate ?? 'the indicated due date'}.`,
+        dispute: `Our records indicate a different calculation. We have attached supporting documentation and request a review at your earliest convenience.`,
+        'confirm-payment': `Payment has been remitted in full. Please update your records and confirm receipt.`
+      }[intent];
+
+      const apology = tone === 'apologetic' ? '\n\nWe apologize for any inconvenience caused and appreciate your patience.' : '';
+      const extra = notes ? `\n\nAdditional information: ${notes}` : '';
+
+      return `${greeting}\n\n${intro}\n\n${body}${apology}${extra}\n\nPlease direct any questions to the assignee on file (${notice.assignedTo}).\n\n${closing}\n${notice.entity} — Tax Operations`;
+    }
+
+    document.getElementById('generate').addEventListener('click', () => {
+      const n = MOCK.notices.find(x => x.id === sel.value);
+      const text = draft(
+        n,
+        document.getElementById('tone').value,
+        document.getElementById('intent').value,
+        document.getElementById('notes').value.trim()
+      );
+      document.getElementById('draft-area').innerHTML = `
+        <textarea id="draft-text" style="min-height:280px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:0.82rem;">${esc(text)}</textarea>
+        <div class="flex" style="margin-top:10px;">
+          <button id="copy">Copy</button>
+          <button id="save" class="btn-secondary" style="color:#fff;background:#16a34a;">Save to Notice</button>
+        </div>
+        <div id="save-msg"></div>
+      `;
+      document.getElementById('copy').addEventListener('click', () => {
+        navigator.clipboard.writeText(document.getElementById('draft-text').value);
+        document.getElementById('save-msg').innerHTML = `<div class="notice success">Copied to clipboard.</div>`;
+      });
+      document.getElementById('save').addEventListener('click', () => {
+        n.attachments.push({ name: `draft-response-${Date.now()}.txt`, kind: 'response' });
+        document.getElementById('save-msg').innerHTML = `<div class="notice success">Saved as response attachment on ${n.id}.</div>`;
+      });
+    });
+  </script>
+</body>
+</html>

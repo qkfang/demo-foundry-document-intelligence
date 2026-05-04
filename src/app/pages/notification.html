@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notification Agent</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <main>
+    <h1>Notification Agent</h1>
+    <div class="subtitle">Default assignment rules, automatic notifications, and reminders to assigned individuals.</div>
+
+    <div id="msg"></div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>Assignment Rules</h2>
+        <table>
+          <thead>
+            <tr><th>Rule</th><th>Tax Type</th><th>Jurisdiction</th><th>Assign To</th><th>Notify</th><th>Reminder (days)</th><th></th></tr>
+          </thead>
+          <tbody id="rules-body"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Add / Edit Rule</h2>
+        <div class="row"><label>Tax Type</label><input type="text" id="r-tax" placeholder="e.g. Sales Tax" /></div>
+        <div class="row"><label>Jurisdiction</label><input type="text" id="r-juris" placeholder="Any or specific state" /></div>
+        <div class="row"><label>Assign To</label><input type="text" id="r-assign" placeholder="Team member" /></div>
+        <div class="row"><label>Notify Email</label><input type="email" id="r-email" placeholder="team@example.com" /></div>
+        <div class="row"><label>Reminder Days Before Due</label><input type="number" id="r-days" value="7" min="1" /></div>
+        <button id="r-add">Save Rule</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Pending Notifications</h2>
+      <div class="toolbar">
+        <button id="send-all">Send All Notifications</button>
+        <button id="send-reminders" class="btn-secondary" style="color:#fff;background:#6d28d9;">Send Reminders</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Notice</th><th>Entity</th><th>Assigned</th><th>Due</th><th>Action</th><th>Status</th></tr>
+        </thead>
+        <tbody id="pending-body"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="../assets/data.js"></script>
+  <script src="../assets/app.js"></script>
+  <script>
+    renderHeader('Notification Agent');
+
+    const sentSet = new Set();
+
+    function showMsg(text, kind = 'success') {
+      const el = document.getElementById('msg');
+      el.innerHTML = `<div class="notice ${kind}">${esc(text)}</div>`;
+      setTimeout(() => { el.innerHTML = ''; }, 3000);
+    }
+
+    function renderRules() {
+      document.getElementById('rules-body').innerHTML = MOCK.rules.map(r => `
+        <tr>
+          <td>${esc(r.id)}</td>
+          <td>${esc(r.taxType)}</td>
+          <td>${esc(r.jurisdiction)}</td>
+          <td>${esc(r.assignTo)}</td>
+          <td>${esc(r.notify)}</td>
+          <td>${r.reminderDays}</td>
+          <td><button class="btn-danger" data-id="${r.id}">Delete</button></td>
+        </tr>
+      `).join('');
+      document.querySelectorAll('#rules-body button[data-id]').forEach(b =>
+        b.addEventListener('click', () => {
+          const i = MOCK.rules.findIndex(r => r.id === b.dataset.id);
+          if (i >= 0) MOCK.rules.splice(i, 1);
+          renderRules();
+        })
+      );
+    }
+
+    function renderPending() {
+      const open = MOCK.notices.filter(n => n.status !== 'Closed');
+      document.getElementById('pending-body').innerHTML = open.map(n => `
+        <tr>
+          <td>${esc(n.id)}</td>
+          <td>${esc(n.entity)}</td>
+          <td>${esc(n.assignedTo)}</td>
+          <td>${esc(n.dueDate)}</td>
+          <td>${n.actionRequired ? '<span class="badge action">ACTION</span>' : '<span class="badge info">INFO</span>'}</td>
+          <td>${sentSet.has(n.id) ? '<span class="badge closed">Notified</span>' : '<span class="badge open">Pending</span>'}</td>
+        </tr>
+      `).join('');
+    }
+
+    document.getElementById('r-add').addEventListener('click', () => {
+      const tax = document.getElementById('r-tax').value.trim();
+      const assign = document.getElementById('r-assign').value.trim();
+      if (!tax || !assign) { showMsg('Tax type and assignee are required.', 'warn'); return; }
+      MOCK.rules.push({
+        id: 'R-' + String(MOCK.rules.length + 1).padStart(2, '0'),
+        taxType: tax,
+        jurisdiction: document.getElementById('r-juris').value.trim() || 'Any',
+        assignTo: assign,
+        notify: document.getElementById('r-email').value.trim() || 'team@example.com',
+        reminderDays: parseInt(document.getElementById('r-days').value, 10) || 7
+      });
+      ['r-tax','r-juris','r-assign','r-email'].forEach(id => document.getElementById(id).value = '');
+      renderRules();
+      showMsg('Rule saved.');
+    });
+
+    document.getElementById('send-all').addEventListener('click', () => {
+      const open = MOCK.notices.filter(n => n.status !== 'Closed');
+      open.forEach(n => sentSet.add(n.id));
+      renderPending();
+      showMsg(`Notifications dispatched to ${open.length} assignees.`);
+    });
+
+    document.getElementById('send-reminders').addEventListener('click', () => {
+      const open = MOCK.notices.filter(n => n.status !== 'Closed' && n.dueDate);
+      showMsg(`Reminders sent for ${open.length} upcoming notices.`);
+    });
+
+    renderRules();
+    renderPending();
+  </script>
+</body>
+</html>
