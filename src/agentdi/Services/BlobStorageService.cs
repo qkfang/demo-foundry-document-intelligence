@@ -19,6 +19,7 @@ public class BlobStorageService
 
     public async Task<Uri> UploadAsync(Stream content, string fileName)
     {
+        await _container.CreateIfNotExistsAsync();
         var blobName = $"{Guid.NewGuid():N}/{fileName}";
         var blobClient = _container.GetBlobClient(blobName);
         await blobClient.UploadAsync(content, overwrite: true);
