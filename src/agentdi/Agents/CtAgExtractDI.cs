@@ -1,19 +1,21 @@
 using Azure.AI.Projects;
 using Microsoft.Extensions.Logging;
+using OpenAI.Responses;
 
 namespace FxAgent.Agents;
 
 public class CtAgExtractDI : BaseAgent
 {
-    public CtAgExtractDI(AIProjectClient aiProjectClient, string deploymentName, ILogger? logger = null)
-        : base(aiProjectClient, "ct-ag-extract-di", deploymentName, GetInstructions(), null, logger)
+    public CtAgExtractDI(AIProjectClient aiProjectClient, string deploymentName, IList<ResponseTool>? tools = null, ILogger? logger = null)
+        : base(aiProjectClient, "ct-ag-extract-di", deploymentName, GetInstructions(), tools, logger)
     {
     }
 
     private static string GetInstructions() => """
-        You are a document extraction agent. You receive raw text extracted from a document by Azure Document Intelligence.
+        You are a document extraction agent. You receive a base64-encoded document.
 
-        Extract exactly these fields and return them as a single JSON object. Do not include any text outside the JSON.
+        Step 1: Call the extractDoc_DI tool with the base64 content to extract the raw text from the document.
+        Step 2: From the extracted text, identify and extract exactly these fields and return them as a single JSON object. Do not include any text outside the JSON.
 
         Fields:
         - entityName: Name of the entity (taxpayer, business, or individual) the notice is addressed to.

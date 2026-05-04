@@ -9,11 +9,26 @@ public class ContentUnderstandingService
 {
     private readonly ContentUnderstandingClient _client;
     private readonly ILogger<ContentUnderstandingService> _logger;
+    private readonly Dictionary<string, string> _modelDeployments;
 
-    public ContentUnderstandingService(string endpoint, TokenCredential credential, ILogger<ContentUnderstandingService> logger)
+    public ContentUnderstandingService(string endpoint, TokenCredential credential,
+        string gpt41Deployment, string gpt41MiniDeployment, string embeddingDeployment,
+        ILogger<ContentUnderstandingService> logger)
     {
         _client = new ContentUnderstandingClient(new Uri(endpoint), credential);
         _logger = logger;
+        _modelDeployments = new Dictionary<string, string>
+        {
+            ["gpt-4.1"] = gpt41Deployment,
+            ["gpt-4.1-mini"] = gpt41MiniDeployment,
+            ["text-embedding-3-large"] = embeddingDeployment
+        };
+    }
+
+    public async Task InitializeAsync()
+    {
+        _logger.LogInformation("Configuring CU model deployment defaults");
+        await _client.UpdateDefaultsAsync(_modelDeployments);
     }
 
     public async Task<string> ExtractFieldsFromUrlAsync(Uri documentUrl, string analyzerId = "prebuilt-documentSearch")

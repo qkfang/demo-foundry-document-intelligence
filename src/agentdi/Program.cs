@@ -47,8 +47,12 @@ var credential = new Azure.Identity.DefaultAzureCredential(new Azure.Identity.De
 
 builder.Services.AddSingleton(sp => new DocIntelligenceService(
     docIntelligenceEndpoint, credential, sp.GetRequiredService<ILogger<DocIntelligenceService>>()));
+var cuGpt41Deployment = builder.Configuration["AZURE_CU_GPT41_DEPLOYMENT"] ?? "gpt-4.1";
+var cuGpt41MiniDeployment = builder.Configuration["AZURE_CU_GPT41_MINI_DEPLOYMENT"] ?? "gpt-4.1-mini";
+var cuEmbeddingDeployment = builder.Configuration["AZURE_CU_EMBEDDING_DEPLOYMENT"] ?? "text-embedding-3-large";
 builder.Services.AddSingleton(sp => new ContentUnderstandingService(
-    foundryEndpoint, credential, sp.GetRequiredService<ILogger<ContentUnderstandingService>>()));
+    foundryEndpoint, credential, cuGpt41Deployment, cuGpt41MiniDeployment, cuEmbeddingDeployment,
+    sp.GetRequiredService<ILogger<ContentUnderstandingService>>()));
 builder.Services.AddSingleton<NotificationService>();
 builder.Services.AddSingleton<PendingApprovalStore>();
 
@@ -104,6 +108,7 @@ var extractDiAgent = new CtAgExtractDI(aiProjectClient, deploymentName, loggerFa
 var extractCuAgent = new CtAgExtractCU(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgExtractCU>());
 var docService = app.Services.GetRequiredService<DocIntelligenceService>();
 var cuService = app.Services.GetRequiredService<ContentUnderstandingService>();
+await cuService.InitializeAsync();
 var approvalStore = app.Services.GetRequiredService<PendingApprovalStore>();
 
 app.MapAllEndpoints(notificationAgent, qualityAgent, correspondenceAgent, extractDiAgent, extractCuAgent, docService, cuService, approvalStore, logger);
