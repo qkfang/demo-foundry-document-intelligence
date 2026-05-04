@@ -218,6 +218,16 @@ resource webAppAIDeveloperRole 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
+resource webAppCogServicesUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(foundryAccount.id, resourceId('Microsoft.Web/sites', webAppName), cognitiveServicesUserRoleId)
+  scope: foundryAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesUserRoleId)
+    principalId: webApp.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // ── Role assignment: Web App → Document Intelligence ─────────────────────────
 resource webAppDocIntelligenceRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(docIntelligenceAccount.id, resourceId('Microsoft.Web/sites', webAppName), cognitiveServicesUserRoleId)
@@ -266,6 +276,16 @@ resource userAIDeveloperRole 'Microsoft.Authorization/roleAssignments@2022-04-01
   scope: foundryAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', azureAIDeveloperRoleId)
+    principalId: principal.id
+    principalType: principal.principalType
+  }
+}]
+
+resource userCogServicesUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for principal in principals: {
+  name: guid(foundryAccount.id, principal.id, cognitiveServicesUserRoleId)
+  scope: foundryAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesUserRoleId)
     principalId: principal.id
     principalType: principal.principalType
   }
