@@ -2,6 +2,7 @@ using Azure.AI.Projects;
 using Azure.Identity;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using FxAgent.Agents;
+using FxAgent.Api;
 using FxAgent.Services;
 using OpenTelemetry.Instrumentation.Http;
 
@@ -62,51 +63,17 @@ var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
 
 var aiProjectClient = new AIProjectClient(new Uri(endpoint), credential);
 var noticeAgent = new CtAgNotice(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgNotice>());
+var trackerAgent = new CtAgTracker(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgTracker>());
+var notificationAgent = new CtAgNotification(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgNotification>());
+var reportingAgent = new CtAgReporting(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgReporting>());
+var qualityAgent = new CtAgQuality(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgQuality>());
+var correspondenceAgent = new CtAgCorrespondence(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgCorrespondence>());
+var reviewAgent = new CtAgReview(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgReview>());
 var docService = new DocIntelligenceService(docIntelligenceEndpoint, credential, loggerFactory.CreateLogger<DocIntelligenceService>());
 
-app.MapPost("/notice/url", async (NoticeUrlRequest request) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Url))
-        return Results.BadRequest(new { error = "url is required" });
-
-    logger.LogInformation("Notice URL request: {Url}", Sanitize(request.Url));
-    var text = await docService.ExtractTextFromUrlAsync(new Uri(request.Url));
-    var response = await noticeAgent.RunAsync(text);
-    return Results.Ok(new { extractedText = text, response });
-});
-
-app.MapPost("/notice/upload", async (HttpRequest http) =>
-{
-    if (!http.HasFormContentType)
-        return Results.BadRequest(new { error = "multipart/form-data required" });
-
-    var form = await http.ReadFormAsync();
-    var file = form.Files.FirstOrDefault();
-    if (file is null || file.Length == 0)
-        return Results.BadRequest(new { error = "file is required" });
-
-    logger.LogInformation("Notice upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
-    using var ms = new MemoryStream();
-    await file.CopyToAsync(ms);
-    var text = await docService.ExtractTextFromBytesAsync(BinaryData.FromBytes(ms.ToArray()));
-    var response = await noticeAgent.RunAsync(text);
-    return Results.Ok(new { extractedText = text, response });
-});
-
-app.MapPost("/notice/text", async (NoticeTextRequest request) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Text))
-        return Results.BadRequest(new { error = "text is required" });
-
-    logger.LogInformation("Notice text request ({Length} chars)", request.Text.Length);
-    var response = await noticeAgent.RunAsync(request.Text);
-    return Results.Ok(new { response });
-});
+app.MapAllEndpoints(noticeAgent, trackerAgent, notificationAgent, reportingAgent, qualityAgent, correspondenceAgent, reviewAgent, docService, logger);
 
 await app.RunAsync();
 
 static string Sanitize(string value) =>
     value.Replace('\r', ' ').Replace('\n', ' ');
-
-record NoticeUrlRequest(string Url);
-record NoticeTextRequest(string Text);
