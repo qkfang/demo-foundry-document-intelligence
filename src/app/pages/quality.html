@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quality Check</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <main>
+    <h1>Quality Check</h1>
+    <div class="subtitle">Assessor agent reviews each notice for missing fields, urgency, and whether action is required.</div>
+
+    <div class="card">
+      <div class="toolbar">
+        <button id="run">Run Assessment</button>
+        <span class="spacer"></span>
+        <span id="status" style="color:var(--muted);font-size:0.85rem;"></span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Notice</th>
+            <th>Entity</th>
+            <th>Action vs Info</th>
+            <th>Urgency</th>
+            <th>Importance</th>
+            <th>Gaps Found</th>
+            <th>Assessment</th>
+          </tr>
+        </thead>
+        <tbody id="qc-body"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Gap Detail</h2>
+      <div id="gap-detail" class="empty">Select a row to inspect gap details.</div>
+    </div>
+  </main>
+
+  <script src="../assets/data.js"></script>
+  <script src="../assets/app.js"></script>
+  <script>
+    renderHeader('Quality Check');
+
+    const REQUIRED = ['entity','jurisdiction','taxType','noticeDate','dueDate','amountDue','assignedTo'];
+
+    function assess(n) {
+      const gaps = [];
+      REQUIRED.forEach(f => {
+        const v = n[f];
+        if (v == null || v === '' || v === 0 && f === 'amountDue' && n.actionRequired) {
+          gaps.push(f);
+        }
+      });
+      let importance = 'Low';
+      if (n.amountDue >= 5000) importance = 'High';
+      else if (n.amountDue >= 1000) importance = 'Medium';
+      const note = n.actionRequired
+        ? `Requires action — ${importance.toLowerCase()} financial impact.`
+        : 'Informational only — no response required.';
+      return { gaps, importance, note };
+    }
+
+    function render() {
+      document.getElementById('qc-body').innerHTML = MOCK.notices.map(n => {
+        const a = assess(n);
+        return `
+          <tr data-id="${n.id}" style="cursor:pointer;">
+            <td>${esc(n.id)}</td>
+            <td>${esc(n.entity)}</td>
+            <td>${n.actionRequired ? '<span class="badge action">ACTION</span>' : '<span class="badge info">INFO</span>'}</td>
+            <td><span class="badge ${n.urgency}">${n.urgency.toUpperCase()}</span></td>
+            <td>${esc(a.importance)}</td>
+            <td>${a.gaps.length ? `<span class="badge high">${a.gaps.length} gap(s)</span>` : '<span class="badge closed">Complete</span>'}</td>
+            <td>${esc(a.note)}</td>
+          </tr>
+        `;
+      }).join('');
+      document.querySelectorAll('#qc-body tr[data-id]').forEach(tr =>
+        tr.addEventListener('click', () => showGaps(tr.dataset.id))
+      );
+    }
+
+    function showGaps(id) {
+      const n = MOCK.notices.find(x => x.id === id);
+      const a = assess(n);
+      const el = document.getElementById('gap-detail');
+      el.classList.remove('empty');
+      el.innerHTML = `
+        <h3>${esc(n.id)} — ${esc(n.entity)}</h3>
+        <div class="summary">${esc(a.note)}</div>
+        ${a.gaps.length
+          ? `<h3 style="margin-top:14px;">Missing or weak fields</h3>
+             <ul style="padding-left:20px;font-size:0.9rem;">${a.gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>`
+          : `<div class="notice success" style="margin-top:14px;">No gaps detected.</div>`}
+      `;
+    }
+
+    document.getElementById('run').addEventListener('click', () => {
+      document.getElementById('status').textContent = 'Assessing...';
+      setTimeout(() => {
+        render();
+        document.getElementById('status').textContent = 'Assessment complete.';
+      }, 400);
+    });
+
+    render();
+  </script>
+</body>
+</html>
