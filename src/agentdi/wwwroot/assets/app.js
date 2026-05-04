@@ -1,6 +1,7 @@
 // Shared header / navigation injected on every page.
 const NAV = [
   { href: 'index.html', label: 'Home' },
+  { href: 'pages/extract.html', label: 'Extract' },
   { href: 'pages/tracker.html', label: 'Notice Tracker' },
   { href: 'pages/notification.html', label: 'Notification Agent' },
   { href: 'pages/reporting.html', label: 'Reporting Agent' },

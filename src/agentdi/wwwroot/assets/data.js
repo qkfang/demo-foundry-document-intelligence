@@ -3,7 +3,7 @@ window.MOCK = {
   notices: [
     {
       id: 'N-1001',
-      entity: 'Northwind Holdings',
+      entity: 'Entity A',
       jurisdiction: 'CA - State',
       taxType: 'Sales Tax',
       noticeDate: '2026-04-12',
@@ -22,7 +22,7 @@ window.MOCK = {
     },
     {
       id: 'N-1002',
-      entity: 'Contoso Ltd',
+      entity: 'Entity B',
       jurisdiction: 'NY - City',
       taxType: 'Property Tax',
       noticeDate: '2026-04-18',
@@ -38,7 +38,7 @@ window.MOCK = {
     },
     {
       id: 'N-1003',
-      entity: 'Fabrikam Inc',
+      entity: 'Entity C',
       jurisdiction: 'TX - State',
       taxType: 'Franchise Tax',
       noticeDate: '2026-03-30',
@@ -54,7 +54,7 @@ window.MOCK = {
     },
     {
       id: 'N-1004',
-      entity: 'Adventure Works',
+      entity: 'Entity D',
       jurisdiction: 'WA - State',
       taxType: 'Use Tax',
       noticeDate: '2026-04-22',
@@ -70,7 +70,7 @@ window.MOCK = {
     },
     {
       id: 'N-1005',
-      entity: 'Tailspin Toys',
+      entity: 'Entity E',
       jurisdiction: 'IL - State',
       taxType: 'Income Tax',
       noticeDate: '2026-04-25',

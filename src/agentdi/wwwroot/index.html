@@ -1,231 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Notice Extraction Demo</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #f4f6f9; color: #333; min-height: 100vh;
-            display: flex; flex-direction: column; align-items: center; padding: 32px 16px;
-        }
-        h1 { font-size: 1.6rem; font-weight: 600; margin-bottom: 8px; color: #1a1a2e; }
-        h2 { font-size: 1rem; font-weight: 600; margin: 18px 0 10px; color: #1a1a2e; }
-        .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 24px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; max-width: 1100px; }
-        .card {
-            background: #fff; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            padding: 24px;
-        }
-        label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
-        input[type=text], textarea, select {
-            width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px 12px;
-            font-size: 0.92rem; color: #333; background: #fafafa; outline: none; font-family: inherit;
-        }
-        textarea { resize: vertical; min-height: 140px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; }
-        input[type=text]:focus, textarea:focus, select:focus { border-color: #4f7df3; background: #fff; }
-        .row { margin-bottom: 14px; }
-        .tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid #e5e7eb; }
-        .tab { padding: 8px 14px; cursor: pointer; font-size: 0.9rem; color: #666; border-bottom: 2px solid transparent; }
-        .tab.active { color: #4f7df3; border-bottom-color: #4f7df3; font-weight: 600; }
-        .pane { display: none; }
-        .pane.active { display: block; }
-        button {
-            background: #4f7df3; color: #fff; border: none; border-radius: 6px;
-            padding: 10px 22px; font-size: 0.92rem; font-weight: 600; cursor: pointer;
-        }
-        button:hover:not(:disabled) { background: #3a65d6; }
-        button:disabled { background: #a5b4fc; cursor: not-allowed; }
-        .field-grid { display: grid; grid-template-columns: 160px 1fr; gap: 8px 14px; font-size: 0.9rem; }
-        .field-grid .k { color: #666; font-weight: 600; }
-        .field-grid .v { color: #1a1a2e; word-break: break-word; }
-        .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
-        .badge.high { background: #fee2e2; color: #b91c1c; }
-        .badge.medium { background: #fef3c7; color: #92400e; }
-        .badge.low { background: #dcfce7; color: #166534; }
-        .badge.action { background: #dbeafe; color: #1e40af; }
-        .badge.info { background: #f1f5f9; color: #475569; }
-        pre { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 6px; font-size: 0.78rem; overflow: auto; max-height: 280px; }
-        .empty { color: #888; font-size: 0.9rem; padding: 20px; text-align: center; }
-        .summary { background: #f8fafc; border-left: 3px solid #4f7df3; padding: 12px 14px; border-radius: 4px; margin-top: 12px; font-size: 0.92rem; line-height: 1.55; }
-        .error { color: #dc2626; }
-        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notice Intelligence</title>
+  <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
-    <h1>Notice Extraction Demo</h1>
-    <div class="subtitle">Foundry agent + Document Intelligence — extract structured fields from tax/government notices</div>
+  <main>
+    <h1>Notice Intelligence Workspace</h1>
+    <div class="subtitle">Agent-assisted handling of tax and government notices end-to-end.</div>
 
-    <div class="grid">
-        <div class="card">
-            <h2>Input</h2>
-            <div class="tabs">
-                <div class="tab active" data-tab="url">URL</div>
-                <div class="tab" data-tab="upload">Upload</div>
-                <div class="tab" data-tab="text">Text</div>
-            </div>
-
-            <div class="pane active" id="pane-url">
-                <div class="row">
-                    <label>Document URL (PDF / image)</label>
-                    <input type="text" id="url-input" placeholder="https://..." />
-                </div>
-                <button id="btn-url" onclick="submitUrl()">Extract</button>
-            </div>
-
-            <div class="pane" id="pane-upload">
-                <div class="row">
-                    <label>Upload notice file</label>
-                    <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp" />
-                </div>
-                <button id="btn-upload" onclick="submitUpload()">Extract</button>
-            </div>
-
-            <div class="pane" id="pane-text">
-                <div class="row">
-                    <label>Paste notice text</label>
-                    <textarea id="text-input" placeholder="Paste raw notice text here..."></textarea>
-                </div>
-                <button id="btn-text" onclick="submitText()">Extract</button>
-            </div>
-        </div>
-
-        <div class="card">
-            <h2>Extracted Fields</h2>
-            <div id="result-area">
-                <div class="empty">No notice processed yet.</div>
-            </div>
-        </div>
+    <div class="grid-3">
+      <a class="card" href="pages/extract.html" style="text-decoration:none;color:inherit;">
+        <h3>Extract</h3>
+        <p style="color:var(--muted);font-size:0.88rem;">Extract structured fields from a notice via Document Intelligence and Foundry agents.</p>
+      </a>
+      <a class="card" href="pages/tracker.html" style="text-decoration:none;color:inherit;">
+        <h3>Notice Tracker</h3>
+        <p style="color:var(--muted);font-size:0.88rem;">All notices with key fields, ability to view and attach correspondence.</p>
+      </a>
+      <a class="card" href="pages/notification.html" style="text-decoration:none;color:inherit;">
+        <h3>Notification Agent</h3>
+        <p style="color:var(--muted);font-size:0.88rem;">Default assignment rules, automated emails, and reminders.</p>
+      </a>
+      <a class="card" href="pages/reporting.html" style="text-decoration:none;color:inherit;">
+        <h3>Reporting Agent</h3>
+        <p style="color:var(--muted);font-size:0.88rem;">Statistical analysis and trend reports across notices.</p>
+      </a>
+      <a class="card" href="pages/quality.html" style="text-decoration:none;color:inherit;">
+        <h3>Quality Check</h3>
+        <p style="color:var(--muted);font-size:0.88rem;">Assessor agent flags gaps, urgency, and action vs informational.</p>
+      </a>
+      <a class="card" href="pages/correspondence.html" style="text-decoration:none;color:inherit;">
+        <h3>Correspondence Agent</h3>
+        <p style="color:var(--muted);font-size:0.88rem;">Drafts response letters and emails for any notice.</p>
+      </a>
+      <a class="card" href="pages/review.html" style="text-decoration:none;color:inherit;">
+        <h3>Human Review</h3>
+        <p style="color:var(--muted);font-size:0.88rem;">Human-in-the-loop corrections feed back into the agents.</p>
+      </a>
     </div>
+  </main>
 
-    <div class="grid" style="margin-top: 20px;">
-        <div class="card">
-            <h2>Document Intelligence Output</h2>
-            <pre id="raw-text">—</pre>
-        </div>
-        <div class="card">
-            <h2>Agent Raw Response</h2>
-            <pre id="raw-response">—</pre>
-        </div>
-    </div>
-
-    <script>
-        document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-            document.querySelectorAll('.pane').forEach(x => x.classList.remove('active'));
-            t.classList.add('active');
-            document.getElementById('pane-' + t.dataset.tab).classList.add('active');
-        }));
-
-        function setLoading(btnId, loading) {
-            const b = document.getElementById(btnId);
-            b.disabled = loading;
-            b.innerHTML = loading ? '<span class="spinner"></span>Extracting...' : 'Extract';
-        }
-
-        async function submitUrl() {
-            const url = document.getElementById('url-input').value.trim();
-            if (!url) return;
-            setLoading('btn-url', true);
-            await postJson('/notice/url', { url });
-            setLoading('btn-url', false);
-        }
-
-        async function submitText() {
-            const text = document.getElementById('text-input').value.trim();
-            if (!text) return;
-            setLoading('btn-text', true);
-            await postJson('/notice/text', { text });
-            setLoading('btn-text', false);
-        }
-
-        async function submitUpload() {
-            const f = document.getElementById('file-input').files[0];
-            if (!f) return;
-            setLoading('btn-upload', true);
-            const fd = new FormData();
-            fd.append('file', f);
-            try {
-                const res = await fetch('/notice/upload', { method: 'POST', body: fd });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-                render(data);
-            } catch (err) {
-                renderError(err.message);
-            }
-            setLoading('btn-upload', false);
-        }
-
-        async function postJson(path, body) {
-            try {
-                const res = await fetch(path, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-                render(data);
-            } catch (err) {
-                renderError(err.message);
-            }
-        }
-
-        function renderError(msg) {
-            document.getElementById('result-area').innerHTML = `<div class="empty error">Error: ${msg}</div>`;
-            document.getElementById('raw-text').textContent = '—';
-            document.getElementById('raw-response').textContent = '—';
-        }
-
-        function render(data) {
-            document.getElementById('raw-text').textContent = data.extractedText ?? '—';
-            document.getElementById('raw-response').textContent = data.response ?? '—';
-
-            const parsed = tryParseJson(data.response);
-            if (!parsed) {
-                document.getElementById('result-area').innerHTML = `<div class="empty">Agent did not return structured JSON.</div>`;
-                return;
-            }
-
-            const urgency = (parsed.urgency || '').toLowerCase();
-            const urgencyBadge = ['high','medium','low'].includes(urgency)
-                ? `<span class="badge ${urgency}">${urgency.toUpperCase()}</span>` : '—';
-            const actionBadge = parsed.actionRequired
-                ? `<span class="badge action">ACTION REQUIRED</span>`
-                : `<span class="badge info">INFORMATIONAL</span>`;
-
-            const amount = parsed.amountDue != null
-                ? `${parsed.amountDue}${parsed.currency ? ' ' + parsed.currency : ''}`
-                : '—';
-
-            document.getElementById('result-area').innerHTML = `
-                <div class="field-grid">
-                    <div class="k">Entity</div><div class="v">${esc(parsed.entityName)}</div>
-                    <div class="k">Jurisdiction</div><div class="v">${esc(parsed.jurisdiction)}</div>
-                    <div class="k">Notice Date</div><div class="v">${esc(parsed.noticeDate)}</div>
-                    <div class="k">Due Date</div><div class="v">${esc(parsed.dueDate)}</div>
-                    <div class="k">Amount Due</div><div class="v">${esc(amount)}</div>
-                    <div class="k">Tax Type</div><div class="v">${esc(parsed.taxType)}</div>
-                    <div class="k">Status</div><div class="v">${actionBadge} ${urgencyBadge}</div>
-                </div>
-                ${parsed.summary ? `<div class="summary">${esc(parsed.summary)}</div>` : ''}
-            `;
-        }
-
-        function tryParseJson(s) {
-            if (!s) return null;
-            const m = s.match(/\{[\s\S]*\}/);
-            if (!m) return null;
-            try { return JSON.parse(m[0]); } catch { return null; }
-        }
-
-        function esc(v) {
-            if (v == null || v === '') return '—';
-            return String(v).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-        }
-    </script>
+  <script src="assets/app.js"></script>
+  <script>renderHeader('Home');</script>
 </body>
 </html>
