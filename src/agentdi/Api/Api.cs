@@ -11,8 +11,46 @@ public static class Endpoints
 {
     public static void MapAllEndpoints(this WebApplication app, CtAgNotice noticeAgent, CtAgTracker trackerAgent,
         CtAgNotification notificationAgent, CtAgReporting reportingAgent, CtAgQuality qualityAgent,
-        CtAgCorrespondence correspondenceAgent, CtAgReview reviewAgent, DocIntelligenceService docService, ILogger logger)
+        CtAgCorrespondence correspondenceAgent,
+        CtAgExtractDI extractDiAgent, CtAgExtractCU extractCuAgent,
+        DocIntelligenceService docService, ILogger logger)
     {
+        app.MapPost("/extract/di/upload", async (HttpRequest http) =>
+        {
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { error = "multipart/form-data required" });
+
+            var form = await http.ReadFormAsync();
+            var file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { error = "file is required" });
+
+            logger.LogInformation("Extract DI upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+            var text = await docService.ExtractTextFromBytesAsync(BinaryData.FromBytes(ms.ToArray()));
+            var response = await extractDiAgent.RunAsync(text);
+            return Results.Ok(new { extractedText = text, response });
+        });
+
+        app.MapPost("/extract/cu/upload", async (HttpRequest http) =>
+        {
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { error = "multipart/form-data required" });
+
+            var form = await http.ReadFormAsync();
+            var file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { error = "file is required" });
+
+            logger.LogInformation("Extract CU upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+            var text = await docService.ExtractTextFromBytesAsync(BinaryData.FromBytes(ms.ToArray()));
+            var response = await extractCuAgent.RunAsync(text);
+            return Results.Ok(new { extractedText = text, response });
+        });
+
         app.MapPost("/notice/url", async (NoticeUrlRequest request) =>
         {
             if (string.IsNullOrWhiteSpace(request.Url))
@@ -72,6 +110,25 @@ public static class Endpoints
             return Results.Ok(new { response });
         });
 
+        app.MapPost("/notification/upload", async (HttpRequest http) =>
+        {
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { error = "multipart/form-data required" });
+
+            var form = await http.ReadFormAsync();
+            var file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { error = "file is required" });
+
+            logger.LogInformation("Notification upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+            var extractedText = await docService.ExtractTextFromBytesAsync(BinaryData.FromBytes(ms.ToArray()));
+            var noticeJson = await noticeAgent.RunAsync(extractedText);
+            var notificationPlan = await notificationAgent.RunAsync(noticeJson);
+            return Results.Ok(new { extractedText, noticeJson, notificationPlan });
+        });
+
         app.MapPost("/reporting/analyze", async (JsonRequest request) =>
         {
             if (string.IsNullOrWhiteSpace(request.Json))
@@ -102,15 +159,6 @@ public static class Endpoints
             return Results.Ok(new { response });
         });
 
-        app.MapPost("/review/corrections", async (JsonRequest request) =>
-        {
-            if (string.IsNullOrWhiteSpace(request.Json))
-                return Results.BadRequest(new { error = "json is required" });
-
-            logger.LogInformation("Review corrections request ({Length} chars)", request.Json.Length);
-            var response = await reviewAgent.RunAsync(request.Json);
-            return Results.Ok(new { response });
-        });
     }
 
     private static string Sanitize(string value) =>

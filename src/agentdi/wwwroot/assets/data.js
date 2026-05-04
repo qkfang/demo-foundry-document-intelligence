@@ -89,31 +89,5 @@ window.MOCK = {
     { id: 'R-01', taxType: 'Sales Tax', jurisdiction: 'Any', assignTo: 'Alex Chen', notify: 'sales-team@example.com', reminderDays: 7 },
     { id: 'R-02', taxType: 'Property Tax', jurisdiction: 'Any', assignTo: 'Priya Patel', notify: 'property-team@example.com', reminderDays: 14 },
     { id: 'R-03', taxType: 'Income Tax', jurisdiction: 'Any', assignTo: 'Sam Rivera', notify: 'income-team@example.com', reminderDays: 5 }
-  ],
-  reviewQueue: [
-    {
-      id: 'RV-01',
-      noticeId: 'N-1001',
-      field: 'amountDue',
-      agentValue: '4280.50',
-      humanValue: '4820.50',
-      status: 'corrected'
-    },
-    {
-      id: 'RV-02',
-      noticeId: 'N-1002',
-      field: 'dueDate',
-      agentValue: '2026-05-01',
-      humanValue: '2026-06-01',
-      status: 'corrected'
-    },
-    {
-      id: 'RV-03',
-      noticeId: 'N-1005',
-      field: 'urgency',
-      agentValue: 'medium',
-      humanValue: null,
-      status: 'pending'
-    }
   ]
 };

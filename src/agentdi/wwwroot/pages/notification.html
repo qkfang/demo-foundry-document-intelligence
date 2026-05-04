@@ -5,130 +5,141 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Notification Agent</title>
   <link rel="stylesheet" href="../assets/styles.css" />
+  <style>
+    .field-grid { display: grid; grid-template-columns: 160px 1fr; gap: 8px 14px; font-size: 0.9rem; }
+    .field-grid .k { color: var(--muted); font-weight: 600; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .email-box { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.9rem; white-space: pre-wrap; margin-top: 8px; }
+    .reminder-list { list-style: none; padding: 0; margin: 0; }
+    .reminder-list li { padding: 4px 0; font-size: 0.9rem; color: var(--muted); }
+  </style>
 </head>
 <body>
   <main>
     <h1>Notification Agent</h1>
-    <div class="subtitle">Default assignment rules, automatic notifications, and reminders to assigned individuals.</div>
-
-    <div id="msg"></div>
+    <div class="subtitle">Upload a notice document to determine who to notify and generate an email assignment plan.</div>
 
     <div class="grid-2">
       <div class="card">
-        <h2>Assignment Rules</h2>
-        <table>
-          <thead>
-            <tr><th>Rule</th><th>Tax Type</th><th>Jurisdiction</th><th>Assign To</th><th>Notify</th><th>Reminder (days)</th><th></th></tr>
-          </thead>
-          <tbody id="rules-body"></tbody>
-        </table>
+        <h2>Upload Notice Document</h2>
+        <div class="row">
+          <label>Notice file (PDF / image)</label>
+          <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp" />
+        </div>
+        <button id="btn-upload">Run Notification Agent</button>
       </div>
 
       <div class="card">
-        <h2>Add / Edit Rule</h2>
-        <div class="row"><label>Tax Type</label><input type="text" id="r-tax" placeholder="e.g. Sales Tax" /></div>
-        <div class="row"><label>Jurisdiction</label><input type="text" id="r-juris" placeholder="Any or specific state" /></div>
-        <div class="row"><label>Assign To</label><input type="text" id="r-assign" placeholder="Team member" /></div>
-        <div class="row"><label>Notify Email</label><input type="email" id="r-email" placeholder="team@example.com" /></div>
-        <div class="row"><label>Reminder Days Before Due</label><input type="number" id="r-days" value="7" min="1" /></div>
-        <button id="r-add">Save Rule</button>
+        <h2>Assignment</h2>
+        <div id="assignment-area"><div class="empty">No document processed yet.</div></div>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Pending Notifications</h2>
-      <div class="toolbar">
-        <button id="send-all">Send All Notifications</button>
-        <button id="send-reminders" class="btn-secondary" style="color:#fff;background:#6d28d9;">Send Reminders</button>
+    <div class="grid-2">
+      <div class="card">
+        <h2>Email Draft</h2>
+        <div id="email-area"><div class="empty">—</div></div>
       </div>
-      <table>
-        <thead>
-          <tr><th>Notice</th><th>Entity</th><th>Assigned</th><th>Due</th><th>Action</th><th>Status</th></tr>
-        </thead>
-        <tbody id="pending-body"></tbody>
-      </table>
+      <div class="card">
+        <h2>Reminders &amp; Escalation</h2>
+        <div id="reminders-area"><div class="empty">—</div></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>Extracted Notice Fields</h2>
+        <pre id="notice-json">—</pre>
+      </div>
+      <div class="card">
+        <h2>Agent Raw Response</h2>
+        <pre id="raw-response">—</pre>
+      </div>
     </div>
   </main>
 
-  <script src="../assets/data.js"></script>
   <script src="../assets/app.js"></script>
   <script>
     renderHeader('Notification Agent');
 
-    const sentSet = new Set();
-
-    function showMsg(text, kind = 'success') {
-      const el = document.getElementById('msg');
-      el.innerHTML = `<div class="notice ${kind}">${esc(text)}</div>`;
-      setTimeout(() => { el.innerHTML = ''; }, 3000);
+    // Check if data was passed from the Extract tab
+    const passedPlan = sessionStorage.getItem('notificationPlan');
+    const passedNotice = sessionStorage.getItem('noticeJson');
+    if (passedPlan) {
+      sessionStorage.removeItem('notificationPlan');
+      sessionStorage.removeItem('noticeJson');
+      render({ noticeJson: passedNotice, notificationPlan: passedPlan });
     }
 
-    function renderRules() {
-      document.getElementById('rules-body').innerHTML = MOCK.rules.map(r => `
-        <tr>
-          <td>${esc(r.id)}</td>
-          <td>${esc(r.taxType)}</td>
-          <td>${esc(r.jurisdiction)}</td>
-          <td>${esc(r.assignTo)}</td>
-          <td>${esc(r.notify)}</td>
-          <td>${r.reminderDays}</td>
-          <td><button class="btn-danger" data-id="${r.id}">Delete</button></td>
-        </tr>
-      `).join('');
-      document.querySelectorAll('#rules-body button[data-id]').forEach(b =>
-        b.addEventListener('click', () => {
-          const i = MOCK.rules.findIndex(r => r.id === b.dataset.id);
-          if (i >= 0) MOCK.rules.splice(i, 1);
-          renderRules();
-        })
-      );
+    function setLoading(loading) {
+      const b = document.getElementById('btn-upload');
+      b.disabled = loading;
+      b.innerHTML = loading ? '<span class="spinner"></span>Processing...' : 'Run Notification Agent';
     }
 
-    function renderPending() {
-      const open = MOCK.notices.filter(n => n.status !== 'Closed');
-      document.getElementById('pending-body').innerHTML = open.map(n => `
-        <tr>
-          <td>${esc(n.id)}</td>
-          <td>${esc(n.entity)}</td>
-          <td>${esc(n.assignedTo)}</td>
-          <td>${esc(n.dueDate)}</td>
-          <td>${n.actionRequired ? '<span class="badge action">ACTION</span>' : '<span class="badge info">INFO</span>'}</td>
-          <td>${sentSet.has(n.id) ? '<span class="badge closed">Notified</span>' : '<span class="badge open">Pending</span>'}</td>
-        </tr>
-      `).join('');
+    document.getElementById('btn-upload').addEventListener('click', async () => {
+      const f = document.getElementById('file-input').files[0];
+      if (!f) return;
+      setLoading(true);
+      const fd = new FormData();
+      fd.append('file', f);
+      try {
+        const res = await fetch('/notification/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        render(data);
+      } catch (err) {
+        renderError(err.message);
+      }
+      setLoading(false);
+    });
+
+    function renderError(msg) {
+      document.getElementById('assignment-area').innerHTML = `<div class="empty error">Error: ${esc(msg)}</div>`;
+      document.getElementById('email-area').innerHTML = '<div class="empty">—</div>';
+      document.getElementById('reminders-area').innerHTML = '<div class="empty">—</div>';
+      document.getElementById('notice-json').textContent = '—';
+      document.getElementById('raw-response').textContent = '—';
     }
 
-    document.getElementById('r-add').addEventListener('click', () => {
-      const tax = document.getElementById('r-tax').value.trim();
-      const assign = document.getElementById('r-assign').value.trim();
-      if (!tax || !assign) { showMsg('Tax type and assignee are required.', 'warn'); return; }
-      MOCK.rules.push({
-        id: 'R-' + String(MOCK.rules.length + 1).padStart(2, '0'),
-        taxType: tax,
-        jurisdiction: document.getElementById('r-juris').value.trim() || 'Any',
-        assignTo: assign,
-        notify: document.getElementById('r-email').value.trim() || 'team@example.com',
-        reminderDays: parseInt(document.getElementById('r-days').value, 10) || 7
-      });
-      ['r-tax','r-juris','r-assign','r-email'].forEach(id => document.getElementById(id).value = '');
-      renderRules();
-      showMsg('Rule saved.');
-    });
+    function render(data) {
+      document.getElementById('notice-json').textContent = data.noticeJson ?? '—';
+      document.getElementById('raw-response').textContent = data.notificationPlan ?? '—';
 
-    document.getElementById('send-all').addEventListener('click', () => {
-      const open = MOCK.notices.filter(n => n.status !== 'Closed');
-      open.forEach(n => sentSet.add(n.id));
-      renderPending();
-      showMsg(`Notifications dispatched to ${open.length} assignees.`);
-    });
+      const plan = tryParseJson(data.notificationPlan);
+      if (!plan) {
+        document.getElementById('assignment-area').innerHTML = '<div class="empty">Agent did not return structured JSON.</div>';
+        return;
+      }
 
-    document.getElementById('send-reminders').addEventListener('click', () => {
-      const open = MOCK.notices.filter(n => n.status !== 'Closed' && n.dueDate);
-      showMsg(`Reminders sent for ${open.length} upcoming notices.`);
-    });
+      document.getElementById('assignment-area').innerHTML = `
+        <div class="field-grid">
+          <div class="k">Assigned To</div><div>${esc(plan.assignedTo)}</div>
+          <div class="k">Reason</div><div>${esc(plan.assignmentReason)}</div>
+          <div class="k">Escalation</div><div>${esc(plan.escalationRule)}</div>
+        </div>
+      `;
 
-    renderRules();
-    renderPending();
+      document.getElementById('email-area').innerHTML = `
+        <div class="field-grid">
+          <div class="k">Subject</div><div>${esc(plan.emailSubject)}</div>
+        </div>
+        <div class="email-box">${esc(plan.emailBody)}</div>
+      `;
+
+      const reminders = Array.isArray(plan.reminders) ? plan.reminders : [];
+      document.getElementById('reminders-area').innerHTML = reminders.length
+        ? `<ul class="reminder-list">${reminders.map(r => `<li><strong>${r.daysBefore} days before:</strong> ${esc(r.message)}</li>`).join('')}</ul>`
+        : '<div class="empty">No reminders.</div>';
+    }
+
+    function tryParseJson(s) {
+      if (!s) return null;
+      const m = s.match(/\{[\s\S]*\}/);
+      if (!m) return null;
+      try { return JSON.parse(m[0]); } catch { return null; }
+    }
   </script>
 </body>
 </html>

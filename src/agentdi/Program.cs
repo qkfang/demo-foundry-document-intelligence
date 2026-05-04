@@ -102,11 +102,10 @@ var notificationAgent = new CtAgNotification(aiProjectClient, deploymentName, lo
 var reportingAgent = new CtAgReporting(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgReporting>());
 var qualityAgent = new CtAgQuality(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgQuality>());
 var correspondenceAgent = new CtAgCorrespondence(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgCorrespondence>());
-var reviewAgent = new CtAgReview(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgReview>());
+var extractDiAgent = new CtAgExtractDI(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgExtractDI>());
+var extractCuAgent = new CtAgExtractCU(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgExtractCU>());
 var docService = app.Services.GetRequiredService<DocIntelligenceService>();
 
-app.MapAllEndpoints(noticeAgent, trackerAgent, notificationAgent, reportingAgent, qualityAgent, correspondenceAgent, reviewAgent, docService, logger);
-app.MapMcp("/mcp");
-app.MapGet("/mcp", () => Results.Ok("MCP endpoint active. Use POST for JSON-RPC."));
+app.MapAllEndpoints(noticeAgent, trackerAgent, notificationAgent, reportingAgent, qualityAgent, correspondenceAgent, extractDiAgent, extractCuAgent, docService, logger);
 
 await app.RunAsync();

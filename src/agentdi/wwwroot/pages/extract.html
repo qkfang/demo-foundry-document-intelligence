@@ -61,6 +61,9 @@
         <div id="result-area">
           <div class="empty">No notice processed yet.</div>
         </div>
+        <div id="notify-action" style="display:none; margin-top:12px;">
+          <button id="btn-notify">Run Notification Agent</button>
+        </div>
       </div>
     </div>
 
@@ -79,6 +82,8 @@
   <script src="../assets/app.js"></script>
   <script>
     renderHeader('Extract');
+
+    let lastExtractedJson = null;
 
     document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
@@ -154,6 +159,7 @@
       const parsed = tryParseJson(data.response);
       if (!parsed) {
         document.getElementById('result-area').innerHTML = `<div class="empty">Agent did not return structured JSON.</div>`;
+        document.getElementById('notify-action').style.display = 'none';
         return;
       }
 
@@ -180,6 +186,9 @@
         </div>
         ${parsed.summary ? `<div class="summary">${esc(parsed.summary)}</div>` : ''}
       `;
+
+      lastExtractedJson = data.response;
+      document.getElementById('notify-action').style.display = 'block';
     }
 
     function tryParseJson(s) {
@@ -188,6 +197,29 @@
       if (!m) return null;
       try { return JSON.parse(m[0]); } catch { return null; }
     }
+
+    document.getElementById('btn-notify').addEventListener('click', async () => {
+      if (!lastExtractedJson) return;
+      const b = document.getElementById('btn-notify');
+      b.disabled = true;
+      b.innerHTML = '<span class="spinner"></span>Running...';
+      try {
+        const res = await fetch('/notification/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ json: lastExtractedJson })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        sessionStorage.setItem('notificationPlan', data.response);
+        sessionStorage.setItem('noticeJson', lastExtractedJson);
+        window.location.href = 'notification.html';
+      } catch (err) {
+        alert('Notification agent error: ' + err.message);
+      }
+      b.disabled = false;
+      b.textContent = 'Run Notification Agent';
+    });
   </script>
 </body>
 </html>
