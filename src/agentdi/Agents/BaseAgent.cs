@@ -7,6 +7,8 @@ using System.Diagnostics;
 
 namespace FxAgent.Agents;
 
+public record PendingToolApproval(string ResponseId, string ApprovalItemId, string ServerLabel);
+
 public abstract class BaseAgent
 {
     protected readonly ProjectResponsesClient _responseClient;
@@ -70,5 +72,42 @@ public abstract class BaseAgent
         _logger.LogInformation("Agent {AgentId} completed in {Duration}ms", _agentId, sw.ElapsedMilliseconds);
 
         return result?.GetOutputText() ?? string.Empty;
+    }
+
+    public async Task<(string? Result, PendingToolApproval? Pending)> StartRunAsync(string message)
+    {
+        CreateResponseOptions options = new()
+        {
+            InputItems = { ResponseItem.CreateUserMessageItem(message) }
+        };
+        return await StepAsync(options);
+    }
+
+    public async Task<(string? Result, PendingToolApproval? Pending)> ContinueRunAsync(string previousResponseId, string approvalItemId, bool approved)
+    {
+        CreateResponseOptions options = new()
+        {
+            PreviousResponseId = previousResponseId,
+            InputItems = { ResponseItem.CreateMcpApprovalResponseItem(approvalItemId, approved) }
+        };
+        return await StepAsync(options);
+    }
+
+    private async Task<(string? Result, PendingToolApproval? Pending)> StepAsync(CreateResponseOptions options)
+    {
+        var clientResult = await _responseClient.CreateResponseAsync(options);
+        var result = clientResult.Value;
+
+        foreach (var item in result.OutputItems)
+        {
+            if (item is McpToolCallApprovalRequestItem mcpCall)
+            {
+                _logger.LogInformation("Awaiting user approval for MCP tool call on {ServerLabel}", mcpCall.ServerLabel);
+                return (null, new PendingToolApproval(result.Id, mcpCall.Id, mcpCall.ServerLabel));
+            }
+        }
+
+        _logger.LogInformation("Agent {AgentId} step completed", _agentId);
+        return (result.GetOutputText(), null);
     }
 }

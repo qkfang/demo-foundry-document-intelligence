@@ -3,9 +3,7 @@ const NAV = [
   { href: 'index.html', label: 'Home' },
   { href: 'pages/extract-di.html', label: 'Extract (DI)' },
   { href: 'pages/extract-cu.html', label: 'Extract (CU)' },
-  { href: 'pages/tracker.html', label: 'Notice Tracker' },
   { href: 'pages/notification.html', label: 'Notification Agent' },
-  { href: 'pages/reporting.html', label: 'Reporting Agent' },
   { href: 'pages/quality.html', label: 'Quality Check' },
   { href: 'pages/correspondence.html', label: 'Correspondence Agent' }
 ];

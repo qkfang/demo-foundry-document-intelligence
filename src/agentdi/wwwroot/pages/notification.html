@@ -49,7 +49,7 @@
 
     <div class="grid-2">
       <div class="card">
-        <h2>Extracted Notice Fields</h2>
+        <h2>Extracted Text</h2>
         <pre id="notice-json">—</pre>
       </div>
       <div class="card">
@@ -62,15 +62,6 @@
   <script src="../assets/app.js"></script>
   <script>
     renderHeader('Notification Agent');
-
-    // Check if data was passed from the Extract tab
-    const passedPlan = sessionStorage.getItem('notificationPlan');
-    const passedNotice = sessionStorage.getItem('noticeJson');
-    if (passedPlan) {
-      sessionStorage.removeItem('notificationPlan');
-      sessionStorage.removeItem('noticeJson');
-      render({ noticeJson: passedNotice, notificationPlan: passedPlan });
-    }
 
     function setLoading(loading) {
       const b = document.getElementById('btn-upload');
@@ -104,10 +95,10 @@
     }
 
     function render(data) {
-      document.getElementById('notice-json').textContent = data.noticeJson ?? '—';
-      document.getElementById('raw-response').textContent = data.notificationPlan ?? '—';
+      document.getElementById('notice-json').textContent = data.extractedText ?? '—';
+      document.getElementById('raw-response').textContent = data.response ?? '—';
 
-      const plan = tryParseJson(data.notificationPlan);
+      const plan = tryParseJson(data.response);
       if (!plan) {
         document.getElementById('assignment-area').innerHTML = '<div class="empty">Agent did not return structured JSON.</div>';
         return;

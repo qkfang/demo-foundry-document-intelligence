@@ -50,6 +50,7 @@ builder.Services.AddSingleton(sp => new DocIntelligenceService(
 builder.Services.AddSingleton(sp => new ContentUnderstandingService(
     foundryEndpoint, credential, sp.GetRequiredService<ILogger<ContentUnderstandingService>>()));
 builder.Services.AddSingleton<NotificationService>();
+builder.Services.AddSingleton<PendingApprovalStore>();
 
 builder.Services.AddMcpServer()
     .WithHttpTransport(options => { options.Stateless = true; })
@@ -96,16 +97,15 @@ var deploymentName = app.Configuration["AZURE_AI_MODEL_DEPLOYMENT_NAME"]
     ?? throw new InvalidOperationException("AZURE_AI_MODEL_DEPLOYMENT_NAME is not set.");
 
 var aiProjectClient = new AIProjectClient(new Uri(endpoint), credential);
-var noticeAgent = new CtAgNotice(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgNotice>());
-var trackerAgent = new CtAgTracker(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgTracker>());
 var notificationAgent = new CtAgNotification(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgNotification>());
-var reportingAgent = new CtAgReporting(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgReporting>());
 var qualityAgent = new CtAgQuality(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgQuality>());
 var correspondenceAgent = new CtAgCorrespondence(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgCorrespondence>());
 var extractDiAgent = new CtAgExtractDI(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgExtractDI>());
 var extractCuAgent = new CtAgExtractCU(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgExtractCU>());
 var docService = app.Services.GetRequiredService<DocIntelligenceService>();
+var cuService = app.Services.GetRequiredService<ContentUnderstandingService>();
+var approvalStore = app.Services.GetRequiredService<PendingApprovalStore>();
 
-app.MapAllEndpoints(noticeAgent, trackerAgent, notificationAgent, reportingAgent, qualityAgent, correspondenceAgent, extractDiAgent, extractCuAgent, docService, logger);
+app.MapAllEndpoints(notificationAgent, qualityAgent, correspondenceAgent, extractDiAgent, extractCuAgent, docService, cuService, approvalStore, logger);
 
 await app.RunAsync();

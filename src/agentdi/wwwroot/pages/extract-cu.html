@@ -55,10 +55,13 @@
       const f = document.getElementById('file-input').files[0];
       if (!f) return;
       setLoading(true);
-      const fd = new FormData();
-      fd.append('file', f);
       try {
-        const res = await fetch('/extract/cu/upload', { method: 'POST', body: fd });
+        const base64Content = await fileToBase64(f);
+        const res = await fetch('/extract/cu/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64Content })
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         render(data);
@@ -67,6 +70,15 @@
       }
       setLoading(false);
     });
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
 
     function renderError(msg) {
       document.getElementById('result-area').innerHTML = `<div class="empty error">Error: ${esc(msg)}</div>`;
