@@ -32,7 +32,8 @@ public class AgentDiMcpTools
         if (!Uri.TryCreate(documentUrl, UriKind.Absolute, out var uri))
             return "Error: documentUrl is not a valid URL.";
 
-        return await _docIntelligence.ExtractTextFromUrlAsync(uri);
+        var result = await _docIntelligence.AnalyzeFromUrlAsync(uri);
+        return result.Markdown;
     }
 
     [McpServerTool(Name = "extractDoc_CU"),
@@ -48,7 +49,8 @@ public class AgentDiMcpTools
         if (!Uri.TryCreate(documentUrl, UriKind.Absolute, out var uri))
             return "Error: documentUrl is not a valid URL.";
 
-        return await _contentUnderstanding.ExtractFieldsFromUrlAsync(uri, analyzerId);
+        var result = await _contentUnderstanding.AnalyzeFromUrlAsync(uri, analyzerId);
+        return result.Markdown;
     }
 
     [McpServerTool(Name = "notification"),

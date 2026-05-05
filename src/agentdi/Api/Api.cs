@@ -7,16 +7,25 @@ record NoticeUrlRequest(string Url);
 record NoticeTextRequest(string Text);
 record JsonRequest(string Json);
 record ApproveRequest(string RunId, bool Approved);
+record SendEmailRequest(string To, string Subject, string Body);
+record CorrespondenceChatRequest(string PreviousResponseId, string Message);
 
 public static class Endpoints
 {
     public static void MapAllEndpoints(this WebApplication app,
-        CtAgNotification notificationAgent, CtAgQuality qualityAgent,
+        CtAgNotification notificationAgent,
         CtAgCorrespondence correspondenceAgent,
         CtAgExtractDI extractDiAgent, CtAgExtractCU extractCuAgent,
         DocIntelligenceService docService, ContentUnderstandingService cuService,
-        BlobStorageService blobStorage, PendingApprovalStore approvalStore, ILogger logger)
+        BlobStorageService blobStorage, NotificationService notificationService,
+        PendingApprovalStore approvalStore, ILogger logger)
     {
+        app.MapGet("/agents/instructions", () =>
+        {
+            var agents = new BaseAgent[] { extractDiAgent, extractCuAgent, notificationAgent, correspondenceAgent };
+            return Results.Ok(agents.ToDictionary(a => a.AgentId, a => a.Instructions));
+        });
+
         app.MapPost("/extract/di/upload", async (HttpRequest http) =>
         {
             if (!http.HasFormContentType)
@@ -30,8 +39,8 @@ public static class Endpoints
             logger.LogInformation("Extract DI upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
             using var stream = file.OpenReadStream();
             var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
-            var extractedText = await docService.ExtractTextFromUrlAsync(blobUrl);
-            return Results.Ok(new { extractedText });
+            var result = await docService.AnalyzeFromUrlAsync(blobUrl);
+            return Results.Ok(new { markdown = result.Markdown, json = result.Json });
         });
 
         app.MapPost("/extract/agent/upload", async (HttpRequest http) =>
@@ -64,19 +73,9 @@ public static class Endpoints
             logger.LogInformation("Extract CU upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
             using var stream = file.OpenReadStream();
             var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
-            var text = await cuService.ExtractFieldsFromUrlAsync(blobUrl);
-            var response = await extractCuAgent.RunAsync(text);
-            return Results.Ok(new { extractedText = text, response });
-        });
-
-        app.MapPost("/notification/generate", async (JsonRequest request) =>
-        {
-            if (string.IsNullOrWhiteSpace(request.Json))
-                return Results.BadRequest(new { error = "json is required" });
-
-            logger.LogInformation("Notification request ({Length} chars)", request.Json.Length);
-            var response = await notificationAgent.RunAsync(request.Json);
-            return Results.Ok(new { response });
+            var cuResult = await cuService.AnalyzeFromUrlAsync(blobUrl);
+            var response = await extractCuAgent.RunAsync(cuResult.Markdown);
+            return Results.Ok(new { markdown = cuResult.Markdown, json = cuResult.Json, response });
         });
 
         app.MapPost("/notification/upload", async (HttpRequest http) =>
@@ -92,36 +91,49 @@ public static class Endpoints
             logger.LogInformation("Notification upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
             using var stream = file.OpenReadStream();
             var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
-            var extractedText = await docService.ExtractTextFromUrlAsync(blobUrl);
-            var response = await notificationAgent.RunAsync(extractedText);
-            return Results.Ok(new { extractedText, response });
+            var cuResult = await cuService.AnalyzeFromUrlAsync(blobUrl);
+            var response = await extractCuAgent.RunAsync(cuResult.Markdown);
+            return Results.Ok(new { markdown = cuResult.Markdown, json = cuResult.Json, response });
         });
 
-        app.MapPost("/quality/check", async (JsonRequest request) =>
+        app.MapPost("/notification/assign", async (JsonRequest request) =>
         {
             if (string.IsNullOrWhiteSpace(request.Json))
                 return Results.BadRequest(new { error = "json is required" });
 
-            logger.LogInformation("Quality check request ({Length} chars)", request.Json.Length);
-            var response = await qualityAgent.RunAsync(request.Json);
+            logger.LogInformation("Notification assign request ({Length} chars)", request.Json.Length);
+            var response = await notificationAgent.RunAsync(request.Json);
             return Results.Ok(new { response });
         });
 
-        app.MapPost("/correspondence/draft", async (JsonRequest request) =>
+        app.MapPost("/correspondence/upload", async (HttpRequest http) =>
         {
-            if (string.IsNullOrWhiteSpace(request.Json))
-                return Results.BadRequest(new { error = "json is required" });
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { error = "multipart/form-data required" });
 
-            logger.LogInformation("Correspondence request ({Length} chars)", request.Json.Length);
-            var (result, pending) = await correspondenceAgent.StartRunAsync(request.Json);
+            var form = await http.ReadFormAsync();
+            var file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { error = "file is required" });
 
-            if (pending is not null)
-            {
-                var runId = approvalStore.Add(pending.ResponseId, pending.ApprovalItemId, pending.ServerLabel);
-                return Results.Ok(new { status = "pending_approval", runId, toolCall = new { serverLabel = pending.ServerLabel } });
-            }
+            logger.LogInformation("Correspondence upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
+            using var stream = file.OpenReadStream();
+            var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
+            var cuResult = await cuService.AnalyzeFromUrlAsync(blobUrl);
+            var extracted = await extractCuAgent.RunAsync(cuResult.Markdown);
 
-            return Results.Ok(new { status = "complete", response = result });
+            var step = await correspondenceAgent.StartRunAsync(extracted);
+            return BuildCorrespondenceResponse(step, approvalStore, extracted);
+        });
+
+        app.MapPost("/correspondence/chat", async (CorrespondenceChatRequest request) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.PreviousResponseId) || string.IsNullOrWhiteSpace(request.Message))
+                return Results.BadRequest(new { error = "previousResponseId and message are required" });
+
+            logger.LogInformation("Correspondence chat ({Length} chars)", request.Message.Length);
+            var step = await correspondenceAgent.ChatAsync(request.PreviousResponseId, request.Message);
+            return BuildCorrespondenceResponse(step, approvalStore, null);
         });
 
         app.MapPost("/correspondence/approve", async (ApproveRequest request) =>
@@ -136,17 +148,34 @@ public static class Endpoints
             approvalStore.Remove(request.RunId);
             logger.LogInformation("Correspondence approval: runId={RunId} approved={Approved}", Sanitize(request.RunId), request.Approved);
 
-            var (result, pending) = await correspondenceAgent.ContinueRunAsync(state.PreviousResponseId, state.ApprovalItemId, request.Approved);
-
-            if (pending is not null)
-            {
-                var nextRunId = approvalStore.Add(pending.ResponseId, pending.ApprovalItemId, pending.ServerLabel);
-                return Results.Ok(new { status = "pending_approval", runId = nextRunId, toolCall = new { serverLabel = pending.ServerLabel } });
-            }
-
-            return Results.Ok(new { status = "complete", response = result });
+            var step = await correspondenceAgent.ContinueRunAsync(state.PreviousResponseId, state.ApprovalItemId, request.Approved);
+            return BuildCorrespondenceResponse(step, approvalStore, null);
         });
 
+    }
+
+    private static IResult BuildCorrespondenceResponse(AgentStepResult step, PendingApprovalStore approvalStore, string? extracted)
+    {
+        if (step.Pending is not null)
+        {
+            var runId = approvalStore.Add(step.Pending.ResponseId, step.Pending.ApprovalItemId, step.Pending.ServerLabel);
+            return Results.Ok(new
+            {
+                status = "pending_approval",
+                runId,
+                previousResponseId = step.ResponseId,
+                toolCall = new { serverLabel = step.Pending.ServerLabel },
+                extracted
+            });
+        }
+
+        return Results.Ok(new
+        {
+            status = "complete",
+            response = step.Result,
+            previousResponseId = step.ResponseId,
+            extracted
+        });
     }
 
     private static string Sanitize(string value) =>

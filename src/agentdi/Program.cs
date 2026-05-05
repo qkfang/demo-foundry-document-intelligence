@@ -114,17 +114,22 @@ var appMcpTool = ResponseTool.CreateMcpTool(
     serverUri: new Uri($"{appMcpUrl}/mcp"),
     toolCallApprovalPolicy: new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.NeverRequireApproval));
 
-var notificationAgent = new CtAgNotification(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgNotification>());
-var qualityAgent = new CtAgQuality(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgQuality>());
-var correspondenceAgent = new CtAgCorrespondence(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgCorrespondence>());
+var appMcpToolWithApproval = ResponseTool.CreateMcpTool(
+    serverLabel: "agentdi-mcp",
+    serverUri: new Uri($"{appMcpUrl}/mcp"),
+    toolCallApprovalPolicy: new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.AlwaysRequireApproval));
+
+var notificationAgent = new CtAgNotification(aiProjectClient, deploymentName, [appMcpTool], loggerFactory.CreateLogger<CtAgNotification>());
+var correspondenceAgent = new CtAgCorrespondence(aiProjectClient, deploymentName, [appMcpToolWithApproval], loggerFactory.CreateLogger<CtAgCorrespondence>());
 var extractDiAgent = new CtAgExtractDI(aiProjectClient, deploymentName, [appMcpTool], loggerFactory.CreateLogger<CtAgExtractDI>());
 var extractCuAgent = new CtAgExtractCU(aiProjectClient, deploymentName, loggerFactory.CreateLogger<CtAgExtractCU>());
 var docService = app.Services.GetRequiredService<DocIntelligenceService>();
 var cuService = app.Services.GetRequiredService<ContentUnderstandingService>();
 await cuService.InitializeAsync();
 var blobStorage = app.Services.GetRequiredService<BlobStorageService>();
+var notificationService = app.Services.GetRequiredService<NotificationService>();
 var approvalStore = app.Services.GetRequiredService<PendingApprovalStore>();
 
-app.MapAllEndpoints(notificationAgent, qualityAgent, correspondenceAgent, extractDiAgent, extractCuAgent, docService, cuService, blobStorage, approvalStore, logger);
+app.MapAllEndpoints(notificationAgent, correspondenceAgent, extractDiAgent, extractCuAgent, docService, cuService, blobStorage, notificationService, approvalStore, logger);
 
 await app.RunAsync();

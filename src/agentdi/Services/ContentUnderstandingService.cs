@@ -1,9 +1,12 @@
+using System.Text.Json;
 using Azure;
 using Azure.AI.ContentUnderstanding;
 using Azure.Core;
 using Microsoft.Extensions.Logging;
 
 namespace FxAgent.Services;
+
+public record ContentUnderstandingResult(string Markdown, string Json);
 
 public class ContentUnderstandingService
 {
@@ -31,7 +34,7 @@ public class ContentUnderstandingService
         await _client.UpdateDefaultsAsync(_modelDeployments);
     }
 
-    public async Task<string> ExtractFieldsFromUrlAsync(Uri documentUrl, string analyzerId = "prebuilt-documentSearch")
+    public async Task<ContentUnderstandingResult> AnalyzeFromUrlAsync(Uri documentUrl, string analyzerId = "prebuilt-documentSearch")
     {
         _logger.LogInformation("CU analyzing URL with {Analyzer}: {Url}", Sanitize(analyzerId), Sanitize(documentUrl.ToString()));
         Operation<AnalysisResult> op = await _client.AnalyzeAsync(
@@ -39,11 +42,10 @@ public class ContentUnderstandingService
             analyzerId,
             inputs: new[] { new AnalysisInput { Uri = documentUrl } });
 
-        var content = op.Value.Contents?.FirstOrDefault();
-        return content?.Markdown ?? string.Empty;
+        return BuildResult(op);
     }
 
-    public async Task<string> ExtractFieldsFromBytesAsync(BinaryData content, string analyzerId = "prebuilt-documentSearch")
+    public async Task<ContentUnderstandingResult> AnalyzeFromBytesAsync(BinaryData content, string analyzerId = "prebuilt-documentSearch")
     {
         _logger.LogInformation("CU analyzing {Bytes} bytes with {Analyzer}", content.ToMemory().Length, Sanitize(analyzerId));
         Operation<AnalysisResult> op = await _client.AnalyzeBinaryAsync(
@@ -51,8 +53,28 @@ public class ContentUnderstandingService
             analyzerId,
             content);
 
-        var first = op.Value.Contents?.FirstOrDefault();
-        return first?.Markdown ?? string.Empty;
+        return BuildResult(op);
+    }
+
+    private static ContentUnderstandingResult BuildResult(Operation<AnalysisResult> op)
+    {
+        var markdown = op.Value.Contents?.FirstOrDefault()?.Markdown ?? string.Empty;
+        var rawJson = op.GetRawResponse().Content.ToString();
+        return new ContentUnderstandingResult(markdown, PrettyJson(rawJson));
+    }
+
+    private static string PrettyJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return string.Empty;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return json;
+        }
     }
 
     private static string Sanitize(string value) =>

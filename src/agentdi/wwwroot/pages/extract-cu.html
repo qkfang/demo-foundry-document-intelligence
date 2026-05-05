@@ -14,7 +14,7 @@
 </head>
 <body>
   <main>
-    <h1>Extract (CU)</h1>
+    <h1>Extract (CU) <span id="agent-info-host"></span></h1>
     <div class="subtitle">Upload a document and extract structured fields using contextual document understanding.</div>
 
     <div class="grid-2">
@@ -25,6 +25,8 @@
           <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.doc,.docx" />
         </div>
         <button id="btn-upload">Extract</button>
+        <span id="sample-docs-host"></span>
+        <div id="sample-selected" class="sample-selected" style="display:none;"></div>
       </div>
 
       <div class="card">
@@ -36,14 +38,63 @@
     </div>
 
     <div class="card">
-      <h2>Document Intelligence Output</h2>
-      <pre id="raw-text">—</pre>
+      <h2>Content Understanding Output</h2>
+      <div class="tabs">
+        <button class="tab active" data-tab="view">View</button>
+        <button class="tab" data-tab="markdown">Markdown</button>
+        <button class="tab" data-tab="json">JSON</button>
+      </div>
+      <div class="tab-panel active" data-panel="view">
+        <div class="output-split">
+          <div id="doc-preview-view" class="doc-preview"></div>
+          <div id="md-render" class="md-render"><div class="empty">No document processed yet.</div></div>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="markdown">
+        <div class="output-split">
+          <div id="doc-preview-md" class="doc-preview"></div>
+          <pre id="raw-markdown">—</pre>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="json">
+        <pre id="raw-json">—</pre>
+      </div>
     </div>
   </main>
 
-  <script src="../assets/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
+  <script src="../assets/app.js?v=20260506"></script>
   <script>
     renderHeader('Extract (CU)');
+    mountAgentInstructionsPanel('agent-info-host', ['ct-ag-extract-cu']);
+
+    const docPreview = setupDocPreview({ fileInputId: 'file-input', previewIds: ['doc-preview-view', 'doc-preview-md'] });
+
+    let pickedSample = null;
+    const samplePicker = mountSampleDocsPopover('sample-docs-host', {
+      onPick: s => {
+        pickedSample = s;
+        document.getElementById('file-input').value = '';
+        const el = document.getElementById('sample-selected');
+        el.textContent = `Selected sample: ${s.label}`;
+        el.style.display = 'block';
+        docPreview.setSample(s);
+      }
+    });
+    document.getElementById('file-input').addEventListener('change', () => {
+      pickedSample = null;
+      samplePicker && samplePicker.clearSelection();
+      document.getElementById('sample-selected').style.display = 'none';
+    });
+
+    document.querySelectorAll('.tabs .tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.tab;
+        document.querySelectorAll('.tabs .tab').forEach(t => t.classList.toggle('active', t === btn));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === target));
+      });
+    });
 
     function setLoading(loading) {
       const b = document.getElementById('btn-upload');
@@ -52,7 +103,11 @@
     }
 
     document.getElementById('btn-upload').addEventListener('click', async () => {
-      const f = document.getElementById('file-input').files[0];
+      let f = document.getElementById('file-input').files[0];
+      if (!f && pickedSample) {
+        try { f = await fetchSampleAsFile(pickedSample); }
+        catch (err) { renderError(err.message); return; }
+      }
       if (!f) return;
       setLoading(true);
       try {
@@ -70,11 +125,15 @@
 
     function renderError(msg) {
       document.getElementById('result-area').innerHTML = `<div class="empty error">Error: ${esc(msg)}</div>`;
-      document.getElementById('raw-text').textContent = '—';
+      document.getElementById('raw-markdown').textContent = '—';
+      document.getElementById('raw-json').textContent = '—';
+      document.getElementById('md-render').innerHTML = `<div class="empty error">Error: ${esc(msg)}</div>`;
     }
 
     function render(data) {
-      document.getElementById('raw-text').textContent = data.extractedText ?? '—';
+      document.getElementById('raw-markdown').textContent = data.markdown ?? '—';
+      document.getElementById('raw-json').textContent = data.json ?? '—';
+      document.getElementById('md-render').innerHTML = renderMarkdown(data.markdown ?? '');
       const parsed = tryParseJson(data.response);
       if (!parsed) {
         document.getElementById('result-area').innerHTML = `<div class="empty">Agent did not return structured JSON.</div>`;

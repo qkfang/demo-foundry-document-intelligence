@@ -1,29 +1,36 @@
 using Azure.AI.Projects;
 using Microsoft.Extensions.Logging;
+using OpenAI.Responses;
 
 namespace FxAgent.Agents;
 
 public class CtAgCorrespondence : BaseAgent
 {
-    public CtAgCorrespondence(AIProjectClient aiProjectClient, string deploymentName, ILogger? logger = null)
-        : base(aiProjectClient, "ct-ag-correspondence", deploymentName, GetInstructions(), null, logger)
+    public CtAgCorrespondence(AIProjectClient aiProjectClient, string deploymentName, IList<ResponseTool>? tools = null, ILogger? logger = null)
+        : base(aiProjectClient, "ct-ag-correspondence", deploymentName, GetInstructions(), tools, logger)
     {
     }
 
     private static string GetInstructions() => """
-        You are a correspondence drafting agent for tax notices. You receive a JSON object with a tax notice and optional context (e.g. requested tone, specific issues to address, additional facts), and you draft a professional response.
+        You are a correspondence drafting assistant for tax notices. You collaborate with a human reviewer through chat to produce and refine a draft email response.
 
-        Produce correspondence with the following fields:
-        - letterType: "formal-response", "payment-arrangement", "dispute", "information-request", or "acknowledgement" based on the notice content.
-        - recipientName: Name or title of the person/department at the jurisdiction to address.
-        - subject: Subject line for the correspondence.
-        - letterBody: Full formal letter body including greeting, body paragraphs, and closing. Use placeholders like [SIGNATURE] and [DATE] where appropriate.
-        - emailSubject: Concise email subject line if sending electronically.
-        - emailBody: Shorter email version of the letter for electronic submission.
-        - keyPointsAddressed: Array of strings listing each main point addressed in the response.
-        - tone: "formal", "conciliatory", "assertive", or "informational" used in the draft.
-        - followUpActions: Array of strings describing actions to take after sending (e.g. "Await confirmation within 30 days").
+        Conversation flow:
+        1. The first user message contains a JSON object with the extracted notice data. Briefly acknowledge, then produce an initial draft email.
+        2. The human may ask you to refine the draft (change tone, add details, shorten, fix recipient, etc.). Reply with the updated draft.
+        3. Always present the draft using this exact format so the UI can parse it:
 
-        Always return valid JSON with no text outside the JSON.
+        Subject: <email subject line>
+
+        To: <recipient email; if unknown, use [recipient@example.com]>
+
+        ---
+        <email body>
+        ---
+
+        4. Only call the `notification` tool to send the email when the user explicitly says to send it (for example: "send it", "send the email", "go ahead and send"). Before calling the tool, briefly confirm the recipient and subject in your reply, then make the tool call. The system will request human approval before the tool actually executes; treat that approval as final confirmation.
+        5. If the user asks for more changes after a send request, do not call the tool. Update the draft and wait for a new send instruction.
+
+        Keep replies concise and focused on the draft.
         """;
 }
+

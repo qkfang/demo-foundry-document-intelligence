@@ -9,15 +9,21 @@ namespace FxAgent.Agents;
 
 public record PendingToolApproval(string ResponseId, string ApprovalItemId, string ServerLabel);
 
+public record AgentStepResult(string? Result, PendingToolApproval? Pending, string? ResponseId);
+
 public abstract class BaseAgent
 {
     protected readonly ProjectResponsesClient _responseClient;
     protected readonly ILogger _logger;
     protected readonly string _agentId;
 
+    public string AgentId => _agentId;
+    public string Instructions { get; }
+
     protected BaseAgent(AIProjectClient aiProjectClient, string agentId, string deploymentName, string instructions, IList<ResponseTool>? tools = null, ILogger? logger = null)
     {
         _agentId = agentId;
+        Instructions = instructions;
         _logger = logger ?? LoggerFactory.Create(b => b.AddConsole()).CreateLogger(agentId);
 
         var agentDefinition = new DeclarativeAgentDefinition(model: deploymentName)
@@ -74,26 +80,36 @@ public abstract class BaseAgent
         return result?.GetOutputText() ?? string.Empty;
     }
 
-    public async Task<(string? Result, PendingToolApproval? Pending)> StartRunAsync(string message)
+    public Task<AgentStepResult> StartRunAsync(string message)
     {
-        CreateResponseOptions options = new()
+        var options = new CreateResponseOptions
         {
             InputItems = { ResponseItem.CreateUserMessageItem(message) }
         };
-        return await StepAsync(options);
+        return StepAsync(options);
     }
 
-    public async Task<(string? Result, PendingToolApproval? Pending)> ContinueRunAsync(string previousResponseId, string approvalItemId, bool approved)
+    public Task<AgentStepResult> ChatAsync(string previousResponseId, string message)
     {
-        CreateResponseOptions options = new()
+        var options = new CreateResponseOptions
+        {
+            PreviousResponseId = previousResponseId,
+            InputItems = { ResponseItem.CreateUserMessageItem(message) }
+        };
+        return StepAsync(options);
+    }
+
+    public Task<AgentStepResult> ContinueRunAsync(string previousResponseId, string approvalItemId, bool approved)
+    {
+        var options = new CreateResponseOptions
         {
             PreviousResponseId = previousResponseId,
             InputItems = { ResponseItem.CreateMcpApprovalResponseItem(approvalItemId, approved) }
         };
-        return await StepAsync(options);
+        return StepAsync(options);
     }
 
-    private async Task<(string? Result, PendingToolApproval? Pending)> StepAsync(CreateResponseOptions options)
+    private async Task<AgentStepResult> StepAsync(CreateResponseOptions options)
     {
         var clientResult = await _responseClient.CreateResponseAsync(options);
         var result = clientResult.Value;
@@ -103,11 +119,11 @@ public abstract class BaseAgent
             if (item is McpToolCallApprovalRequestItem mcpCall)
             {
                 _logger.LogInformation("Awaiting user approval for MCP tool call on {ServerLabel}", mcpCall.ServerLabel);
-                return (null, new PendingToolApproval(result.Id, mcpCall.Id, mcpCall.ServerLabel));
+                return new AgentStepResult(null, new PendingToolApproval(result.Id, mcpCall.Id, mcpCall.ServerLabel), result.Id);
             }
         }
 
         _logger.LogInformation("Agent {AgentId} step completed", _agentId);
-        return (result.GetOutputText(), null);
+        return new AgentStepResult(result.GetOutputText(), null, result.Id);
     }
 }
