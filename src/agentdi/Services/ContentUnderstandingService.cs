@@ -70,7 +70,7 @@ public class ContentUnderstandingService
             return new ContentUnderstandingExtractionResult(basic.Markdown, basic.Json, new Dictionary<string, CuFieldValue>());
         }
 
-        var analyzerId = $"agentdi-custom-{Guid.NewGuid():N}";
+        var analyzerId = $"agentdi_custom_{Guid.NewGuid():N}";
         var schemaFields = new Dictionary<string, ContentFieldDefinition>(StringComparer.Ordinal);
         foreach (var f in fields)
         {
@@ -102,6 +102,8 @@ public class ContentUnderstandingService
             Description = "Ad-hoc analyzer for custom field extraction",
             FieldSchema = schema
         };
+        analyzer.Models["completion"] = _modelDeployments["gpt-4.1"];
+        analyzer.Models["embedding"] = _modelDeployments["text-embedding-3-large"];
 
         _logger.LogInformation("CU creating custom analyzer {AnalyzerId} with {Count} field(s)", analyzerId, schemaFields.Count);
         try
