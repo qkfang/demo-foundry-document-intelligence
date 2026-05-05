@@ -1,5 +1,6 @@
 using FxAgent.Agents;
 using FxAgent.Services;
+using System.Text.Json;
 
 namespace FxAgent.Api;
 
@@ -43,6 +44,46 @@ public static class Endpoints
             return Results.Ok(new { markdown = result.Markdown, json = result.Json });
         });
 
+        app.MapPost("/extract/cu/upload", async (HttpRequest http) =>
+        {
+            if (!http.HasFormContentType)
+                return Results.BadRequest(new { error = "multipart/form-data required" });
+
+            var form = await http.ReadFormAsync();
+            var file = form.Files.FirstOrDefault();
+            if (file is null || file.Length == 0)
+                return Results.BadRequest(new { error = "file is required" });
+
+            var fieldsJson = form["fields"].ToString();
+            List<CuFieldSpec> fieldSpecs = new();
+            if (!string.IsNullOrWhiteSpace(fieldsJson))
+            {
+                try
+                {
+                    fieldSpecs = JsonSerializer.Deserialize<List<CuFieldSpec>>(fieldsJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+                }
+                catch (JsonException ex)
+                {
+                    return Results.BadRequest(new { error = $"invalid fields JSON: {ex.Message}" });
+                }
+            }
+
+            logger.LogInformation("Extract CU upload: {FileName} ({Size} bytes), {FieldCount} custom field(s)",
+                Sanitize(file.FileName), file.Length, fieldSpecs.Count);
+            using var stream = file.OpenReadStream();
+            var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
+
+            if (fieldSpecs.Count == 0)
+            {
+                var result = await cuService.AnalyzeFromUrlAsync(blobUrl);
+                return Results.Ok(new { markdown = result.Markdown, json = result.Json, fields = new Dictionary<string, CuFieldValue>() });
+            }
+
+            var extraction = await cuService.AnalyzeWithCustomFieldsAsync(blobUrl, fieldSpecs);
+            return Results.Ok(new { markdown = extraction.Markdown, json = extraction.Json, fields = extraction.Fields });
+        });
+
         app.MapPost("/extract/agent/upload", async (HttpRequest http) =>
         {
             if (!http.HasFormContentType)
@@ -58,24 +99,6 @@ public static class Endpoints
             var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
             var response = await extractDiAgent.RunAsync(blobUrl.ToString());
             return Results.Ok(new { response });
-        });
-
-        app.MapPost("/extract/cu/upload", async (HttpRequest http) =>
-        {
-            if (!http.HasFormContentType)
-                return Results.BadRequest(new { error = "multipart/form-data required" });
-
-            var form = await http.ReadFormAsync();
-            var file = form.Files.FirstOrDefault();
-            if (file is null || file.Length == 0)
-                return Results.BadRequest(new { error = "file is required" });
-
-            logger.LogInformation("Extract CU upload: {FileName} ({Size} bytes)", Sanitize(file.FileName), file.Length);
-            using var stream = file.OpenReadStream();
-            var blobUrl = await blobStorage.UploadAsync(stream, file.FileName);
-            var cuResult = await cuService.AnalyzeFromUrlAsync(blobUrl);
-            var response = await extractCuAgent.RunAsync(cuResult.Markdown);
-            return Results.Ok(new { markdown = cuResult.Markdown, json = cuResult.Json, response });
         });
 
         app.MapPost("/notification/upload", async (HttpRequest http) =>

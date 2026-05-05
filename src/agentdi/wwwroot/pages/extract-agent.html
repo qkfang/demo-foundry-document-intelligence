@@ -38,6 +38,20 @@
     </div>
 
     <div class="card">
+      <h2>Transformed Fields</h2>
+      <div id="transformed-area">
+        <div class="empty">No document processed yet.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Detected Form Category</h2>
+      <div id="category-area">
+        <div class="empty">No document processed yet.</div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Agent Raw Response</h2>
       <pre id="raw-text">—</pre>
     </div>
@@ -93,6 +107,8 @@
 
     function renderError(msg) {
       document.getElementById('result-area').innerHTML = `<div class="empty error">Error: ${esc(msg)}</div>`;
+      document.getElementById('transformed-area').innerHTML = `<div class="empty">—</div>`;
+      document.getElementById('category-area').innerHTML = `<div class="empty">—</div>`;
       document.getElementById('raw-text').textContent = '—';
     }
 
@@ -101,18 +117,44 @@
       const parsed = tryParseJson(data.response);
       if (!parsed) {
         document.getElementById('result-area').innerHTML = `<div class="empty">Agent did not return structured JSON.</div>`;
+        document.getElementById('transformed-area').innerHTML = `<div class="empty">—</div>`;
+        document.getElementById('category-area').innerHTML = `<div class="empty">—</div>`;
         return;
       }
-      const amount = parsed.amountDue != null ? String(parsed.amountDue) : '—';
+
+      const extracted = parsed.extracted ?? parsed;
+      const transformed = parsed.transformed ?? null;
+      const category = parsed.category ?? null;
+
+      const amount = extracted.amountDue != null ? String(extracted.amountDue) : '—';
       document.getElementById('result-area').innerHTML = `
         <div class="field-grid">
-          <div class="k">Entity Name</div><div>${esc(parsed.entityName)}</div>
-          <div class="k">Jurisdiction</div><div>${esc(parsed.jurisdiction)}</div>
-          <div class="k">Notice Date</div><div>${esc(parsed.noticeDate)}</div>
-          <div class="k">Due Date</div><div>${esc(parsed.dueDate)}</div>
+          <div class="k">Entity Name</div><div>${esc(extracted.entityName)}</div>
+          <div class="k">Jurisdiction</div><div>${esc(extracted.jurisdiction)}</div>
+          <div class="k">Notice Date</div><div>${esc(extracted.noticeDate)}</div>
+          <div class="k">Due Date</div><div>${esc(extracted.dueDate)}</div>
           <div class="k">Amount Due</div><div>${esc(amount)}</div>
-          <div class="k">Tax Type</div><div>${esc(parsed.taxType)}</div>
+          <div class="k">Tax Type</div><div>${esc(extracted.taxType)}</div>
         </div>`;
+
+      if (transformed) {
+        const total = transformed.totalDue != null ? String(transformed.totalDue) : '—';
+        document.getElementById('transformed-area').innerHTML = `
+          <div class="field-grid">
+            <div class="k">recipient</div><div>${esc(transformed.recipient)}</div>
+            <div class="k">issuingAuthority</div><div>${esc(transformed.issuingAuthority)}</div>
+            <div class="k">issuedOn</div><div>${esc(transformed.issuedOn)}</div>
+            <div class="k">respondBy</div><div>${esc(transformed.respondBy)}</div>
+            <div class="k">totalDue</div><div>${esc(total)}</div>
+            <div class="k">taxCategory</div><div>${esc(transformed.taxCategory)}</div>
+          </div>`;
+      } else {
+        document.getElementById('transformed-area').innerHTML = `<div class="empty">No transformed view returned.</div>`;
+      }
+
+      document.getElementById('category-area').innerHTML = category
+        ? `<div style="font-size:1.1rem;font-weight:600;">${esc(category)}</div>`
+        : `<div class="empty">No category returned.</div>`;
     }
 
     function tryParseJson(s) {
